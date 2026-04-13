@@ -15,10 +15,10 @@ const CHARS=[
    desc:'WINNING — Kokain traje 2× duže',
    jCol:'#2c1f0a',jCol2:'#5a3a10',hair:'slick',hCol:'#080808',skin:'#d49060',
    anxRate:1.35,bonus:'cocaine',streak:'immune'},
-  {id:'amy',    name:'Amy Winehouse',   emoji:'🎵',
-   desc:'Back to Black — Heroin ne broji streak',
-   jCol:'#1a0510',jCol2:'#30091c',hair:'beehive',hCol:'#0a0505',skin:'#c8a070',
-   anxRate:0.7,bonus:'heroin',streak:'heroin_immune'},
+  {id:'sara',   name:'Sara Grišević',   emoji:'💃',
+   desc:'Turbo folk ikon — Anksioznost? Nikad čula.',
+   jCol:'#7a0055',jCol2:'#cc0090',hair:'beehive',hCol:'#0a0310',skin:'#d4a075',
+   anxRate:0.14,bonus:'ecstasy',streak:'none'},
   {id:'kabir',  name:'Kabir Biberovic', emoji:'🇧🇦',
    desc:'Lokalni šampion — Najsporija anksioznost',
    jCol:'#0a1e3c',jCol2:'#0d2a52',hair:'curly',hCol:'#1a0e05',skin:'#c09060',
@@ -70,7 +70,7 @@ function startGame(charId){
   const wags=[];for(let i=0;i<10;i++)wags.push(mkWagon(0.02+i*(W_LN+W_GAP)));
   G={ph:'play',t:0,fr:0,score:0,spd:0.008,hue:0,shk:0,msg:'',msgT:0,
      char,deathCause:'crash',wasOD:false,lastHard:'',streak:0,ovT:0,
-     anxiety:0,
+     anxiety:0,panics:0,panicT:0,urgentPkpT:3000,
      mom:{active:false,timer:45000+Math.random()*20000,activeT:0},
      suvAlert:false,suvAlertT:0,
      p:{lane:1,wx:0,jy:0,jv:0,gnd:true,eff:null,effEnd:0,mj:1,ji:0},
@@ -141,7 +141,23 @@ function update(dt){
   if(p.eff){G.anxiety=Math.max(0,G.anxiety-3*dt/1000);}
   else{G.anxiety=Math.min(100,G.anxiety+ch.anxRate*(0.9+G.score*0.0015)*dt/1000*9);}
   if(G.anxiety>=75)G.shk=Math.max(G.shk,(G.anxiety-75)/25*7);
-  if(G.anxiety>=100){G.deathCause='anxiety';die();return;}
+  // XANAX hitni pickup kad anksioznost kritična
+  if(G.anxiety>87&&!p.eff){
+    G.urgentPkpT-=dt;
+    if(G.urgentPkpT<=0){
+      G.pkp.push({lane:p.lane,wz:0.84,urgent:true,done:false,
+        drug:{id:'weed',name:'XANAX',icon:'💊',col:'#0a3a7a',glo:'#00ccff',dur:7000,msg:'Dišeš... anksioznost nestaje.',hard:false}});
+      G.urgentPkpT=7500;G.msg='💊 XANAX se približava — uhvati ga!';G.msgT=2000;
+    }
+  } else if(G.anxiety<72)G.urgentPkpT=Math.min(G.urgentPkpT+dt,3000);
+  // Napadaj panike — ne ubija odmah, daje šansu
+  if(G.anxiety>=100){
+    if(G.panics>=2){G.deathCause='anxiety';die();return;}
+    G.panics++;G.anxiety=46;G.panicT=3200;G.urgentPkpT=0;
+    G.shk=28;G.msg=`⚠ NAPADAJ PANIKE ${G.panics}/2 — pronađi XANAX!`;G.msgT=3000;
+    snd(160,1.0,0.45,'sawtooth');setTimeout(()=>snd(140,0.7,0.3,'sawtooth'),400);
+  }
+  if(G.panicT>0){G.panicT=Math.max(0,G.panicT-dt);G.shk=Math.max(G.shk,9*(G.panicT/3200));}
 
   // ── MOM CALL ──
   const mc=G.mom;mc.timer-=dt;
@@ -159,7 +175,7 @@ function update(dt){
   p.jv-=(isH?0.2:0.38);p.jy+=p.jv;
   if(p.jy<=0){p.jy=0;p.jv=0;p.gnd=true;p.ji=0;}
   const dz=sp*dt/16.67;
-  G.obs.forEach(o=>o.wz-=dz);G.pkp.forEach(q=>q.wz-=dz);G.wags.forEach(w=>w.wz-=dz);
+  G.obs.forEach(o=>o.wz-=dz);G.pkp.forEach(q=>q.wz-=dz*(q.urgent?2.4:1));G.wags.forEach(w=>w.wz-=dz);
   for(const pt of G.parts){pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.15;pt.l-=pt.d;}
   G.obs=G.obs.filter(o=>o.wz>-0.06);G.pkp=G.pkp.filter(q=>q.wz>-0.06&&!q.done);
   G.parts=G.parts.filter(pt=>pt.l>0);G.wags=G.wags.filter(w=>w.wz+W_LN>-0.08);
