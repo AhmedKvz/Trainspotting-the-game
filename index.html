@@ -11,10 +11,10 @@ const W_WX=-312,W_HT=148,W_LN=0.21,W_GAP=0.05;
 
 // ── CHARACTERS ─────────────────────────────────────────────
 const CHARS=[
-  {id:'charlie',name:'Charlie Sheen',   emoji:'🐯',
-   desc:'WINNING — Kokain traje 2× duže',
-   jCol:'#2c1f0a',jCol2:'#5a3a10',hair:'slick',hCol:'#080808',skin:'#d49060',
-   anxRate:1.35,bonus:'cocaine',streak:'immune'},
+  {id:'ramiz',  name:'Ramiz',           emoji:'🎤',
+   desc:'Balkan legenda — Speed i Krek duplo jači',
+   jCol:'#1a0a00',jCol2:'#3a1800',hair:'slick',hCol:'#050505',skin:'#c89060',
+   anxRate:0.85,bonus:'speed',streak:'none'},
   {id:'sara',   name:'Sara Grišević',   emoji:'💃',
    desc:'Turbo folk ikon — Anksioznost? Nikad čula.',
    jCol:'#7a0055',jCol2:'#cc0090',hair:'beehive',hCol:'#0a0310',skin:'#d4a075',
@@ -27,6 +27,10 @@ const CHARS=[
    desc:'Yo Mr. White! — Speed 2× brži',
    jCol:'#b89010',jCol2:'#d8b020',hair:'beanie',hCol:'#111',skin:'#d4b090',
    anxRate:1.0,bonus:'speed',streak:'none'},
+  {id:'jary',   name:'Jary Enko',       emoji:'🎧',
+   desc:'Trap king — Ecstasy i Acid traju vječno',
+   jCol:'#0a0a0a',jCol2:'#222',hair:'beanie',hCol:'#111',skin:'#b07840',
+   anxRate:0.75,bonus:'ecstasy',streak:'none'},
 ];
 
 // ── DRUGS ──────────────────────────────────────────────────
@@ -80,6 +84,8 @@ function startGame(charId){
 
 // ── INPUT ──────────────────────────────────────────────────
 const KS={};
+let touchX0=null,touchY0=null,touchT0=0,lastSwipeT=0;
+
 addEventListener('keydown',e=>{
   if(KS[e.code])return;KS[e.code]=true;
   if(G.ph==='overdose'||G.ph==='charselect')return;
@@ -91,6 +97,47 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>KS[e.code]=false);
 
+// Touch — swipe left/right = traka, swipe up / tap centre = skok
+CV.addEventListener('touchstart',e=>{
+  const t=e.touches[0];
+  touchX0=t.clientX;touchY0=t.clientY;touchT0=Date.now();
+  e.preventDefault();
+},{passive:false});
+
+CV.addEventListener('touchend',e=>{
+  if(touchX0===null)return;
+  const t=e.changedTouches[0];
+  const dx=t.clientX-touchX0,dy=t.clientY-touchY0;
+  const dt2=Math.max(1,Date.now()-touchT0);
+  const vx=Math.abs(dx)/dt2,vy=Math.abs(dy)/dt2;
+  const now=Date.now();
+
+  if(G.ph==='charselect'){
+    const r=CV.getBoundingClientRect(),mx=(t.clientX-r.left)*(W/r.width),my=(t.clientY-r.top)*(H/r.height);
+    CHARS.forEach((c,i)=>{const bx=charCardX(i);if(mx>=bx&&mx<=bx+cW&&my>=cY&&my<=cY+cH)startGame(c.id);});
+    touchX0=null;return;
+  }
+  if(G.ph==='dead'){G.ph='charselect';G.hoverChar=-1;touchX0=null;return;}
+  if(G.ph!=='play'){touchX0=null;return;}
+
+  const cooldown=220;
+  if(now-lastSwipeT<cooldown){touchX0=null;return;}
+
+  if(vx>0.22&&Math.abs(dx)>28&&Math.abs(dx)>Math.abs(dy)*1.1){
+    // Horizontal swipe
+    mvL(dx>0?1:-1);lastSwipeT=now;
+  } else if(dy<-22&&vy>0.18){
+    // Swipe up
+    doJump();lastSwipeT=now;
+  } else if(Math.abs(dx)<22&&Math.abs(dy)<22&&dt2<250){
+    // Short tap
+    const r=CV.getBoundingClientRect(),tx=(t.clientX-r.left)*(W/r.width);
+    if(tx<W*0.3)mvL(-1);else if(tx>W*0.7)mvL(1);else doJump();
+    lastSwipeT=now;
+  }
+  touchX0=null;
+},{passive:false});
+
 CV.addEventListener('pointermove',e=>{
   if(G.ph!=='charselect')return;
   const r=CV.getBoundingClientRect(),mx=(e.clientX-r.left)*(W/r.width),my=(e.clientY-r.top)*(H/r.height);
@@ -99,16 +146,12 @@ CV.addEventListener('pointermove',e=>{
 });
 
 CV.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='touch')return; // touch handles separately
   const r=CV.getBoundingClientRect(),mx=(e.clientX-r.left)*(W/r.width),my=(e.clientY-r.top)*(H/r.height);
-  if(G.ph==='charselect'){
-    CHARS.forEach((c,i)=>{const bx=charCardX(i);if(mx>=bx&&mx<=bx+cW&&my>=cY&&my<=cY+cH)startGame(c.id);});
-    return;
-  }
-  if(G.ph==='overdose')return;
+  if(G.ph==='charselect'){CHARS.forEach((c,i)=>{const bx=charCardX(i);if(mx>=bx&&mx<=bx+cW&&my>=cY&&my<=cY+cH)startGame(c.id);});return;}
   if(G.ph==='dead'){G.ph='charselect';G.hoverChar=-1;return;}
   if(G.ph!=='play')return;
-  const cx2=r.left+r.width/2;
-  if(e.clientX<cx2-100)mvL(-1);else if(e.clientX>cx2+100)mvL(1);else doJump();
+  if(mx<W*0.3)mvL(-1);else if(mx>W*0.7)mvL(1);else doJump();
 });
 
 function mvL(d){const nl=Math.max(0,Math.min(2,G.p.lane+d));if(nl!==G.p.lane){G.p.lane=nl;snd(300+d*70,0.08,0.12);}}
