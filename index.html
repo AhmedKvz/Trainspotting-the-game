@@ -149,7 +149,7 @@ G={ph:'charselect',t:0,fr:0,hoverChar:-1,ch:CHARS[0]};
 
 // ── RESIZE / ORIENTATION ─────────────────────────
 function resize(){
-  isPortrait=window.innerHeight>window.innerWidth*1.05;
+  isPortrait=false; // igra radi u svakoj orijentaciji
   const vw=window.innerWidth,vh=window.innerHeight;
   const scale=Math.min(vw/W,vh/H);
   CV.style.width=W*scale+'px';
