@@ -12,29 +12,9 @@ body{width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#000;
   display:flex;align-items:center;justify-content:center}
 canvas{display:block;image-rendering:crisp-edges;touch-action:none;cursor:pointer;
   -webkit-user-select:none;user-select:none}
-#ui{position:fixed;top:10px;left:10px;display:flex;gap:8px;z-index:10}
-#ui button{width:38px;height:38px;border:1px solid #2a2a2a;border-radius:9px;
-  background:rgba(12,12,12,0.78);color:#f5f5f0;font-size:17px;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;line-height:1;
-  -webkit-tap-highlight-color:transparent;backdrop-filter:blur(2px);transition:transform .08s}
-#ui button:active{transform:scale(0.9)}
-#bShare{position:fixed;left:50%;bottom:5%;top:auto;transform:translateX(-50%);
-  width:auto;height:auto;padding:11px 22px;font-size:13px;font-weight:700;
-  font-family:'Courier New',monospace;letter-spacing:1px;border-radius:10px;
-  border:1px solid #c0392b;background:#c0392b;color:#fff;display:none;z-index:10;
-  position:fixed}
-#bShare:active{transform:translateX(-50%) scale(0.94)}
-.hidden{display:none!important}
 </style>
 </head><body>
 <canvas id="c"></canvas>
-<div id="ui">
-  <button id="bMute" aria-label="Zvuk" title="Zvuk (M)">🔊</button>
-  <button id="bPause" class="hidden" aria-label="Pauza" title="Pauza (P)">⏸</button>
-  <a href="dota.html" title="ARENA — dota mod" style="width:38px;height:38px;border:1px solid #2a2a2a;border-radius:9px;background:rgba(12,12,12,0.78);color:#f5f5f0;font-size:16px;display:flex;align-items:center;justify-content:center;text-decoration:none">⚔️</a>
-  <a href="mario.html" title="PRVO LICE — mario mod" style="width:38px;height:38px;border:1px solid #2a2a2a;border-radius:9px;background:rgba(12,12,12,0.78);color:#f5f5f0;font-size:16px;display:flex;align-items:center;justify-content:center;text-decoration:none">🍄</a>
-</div>
-<button id="bShare" aria-label="Podeli rezultat">📤 PODELI REZULTAT</button>
 <script>
 'use strict';
 const CV=document.getElementById('c');
@@ -86,7 +66,6 @@ const DRUGS=[
 let AC;
 function ga(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();return AC;}
 function snd(f,d,v=0.2,t='sine'){
-  if(MUTED)return;
   try{const a=ga(),o=a.createOscillator(),g=a.createGain();
     o.type=t;o.frequency.setValueAtTime(f,a.currentTime);
     g.gain.setValueAtTime(v,a.currentTime);
@@ -95,7 +74,6 @@ function snd(f,d,v=0.2,t='sine'){
   }catch(e){}
 }
 function sndSnort(){
-  if(MUTED)return;
   try{const a=ga(),buf=a.createBuffer(1,Math.floor(a.sampleRate*0.14),a.sampleRate);
     const dt=buf.getChannelData(0);
     for(let i=0;i<dt.length;i++)dt[i]=(Math.random()*2-1)*Math.pow(1-i/dt.length,3)*0.95;
@@ -106,7 +84,6 @@ function sndSnort(){
   }catch(e){}
 }
 function sndCrack(){
-  if(MUTED)return;
   try{const a=ga();
     for(let i=0;i<7;i++){
       setTimeout(()=>{
@@ -122,82 +99,22 @@ function sndCrack(){
   }catch(e){}
 }
 function sndMom(){
-  if(MUTED)return;
   [0,380,760].forEach(i=>setTimeout(()=>{
     snd(880,0.12,0.32,'square');
     setTimeout(()=>snd(660,0.09,0.2,'square'),140);
   },i));
 }
-// Majka-prepreka: grebava, nazalna "GDE JE MOJE ZLATO?!"
-function sndMother(){
-  if(MUTED)return;
-  const seq=[[300,0.13],[250,0.11],[330,0.12],[290,0.11],[225,0.15],[320,0.24]];
-  seq.forEach(([f,d],i)=>setTimeout(()=>{
-    snd(f,d,0.32,'sawtooth');snd(f*2.02,d*0.7,0.07,'square');
-  },i*145));
-}
-// Beba: cviljenje sa vibratom (dva plača)
-function sndBaby(){
-  if(MUTED)return;
-  try{const a=ga();
-    [0,520].forEach(off=>{
-      const o=a.createOscillator(),g=a.createGain(),lfo=a.createOscillator(),lg=a.createGain();
-      o.type='sawtooth';const t0=a.currentTime+off/1000;
-      o.frequency.setValueAtTime(640,t0);
-      o.frequency.linearRampToValueAtTime(980,t0+0.18);
-      o.frequency.linearRampToValueAtTime(720,t0+0.46);
-      lfo.frequency.value=12;lg.gain.value=42;lfo.connect(lg);lg.connect(o.frequency);
-      g.gain.setValueAtTime(0.0001,t0);
-      g.gain.exponentialRampToValueAtTime(0.26,t0+0.06);
-      g.gain.exponentialRampToValueAtTime(0.0001,t0+0.47);
-      o.connect(g);g.connect(a.destination);o.start(t0);o.stop(t0+0.5);lfo.start(t0);lfo.stop(t0+0.5);
-    });
-  }catch(e){}
-}
-// Policijska sirena (jedan zavoj — poziva se u petlji tokom racije)
-function sndSiren(){
-  if(MUTED)return;
-  try{const a=ga(),o=a.createOscillator(),g=a.createGain();
-    o.type='sawtooth';const t0=a.currentTime;
-    o.frequency.setValueAtTime(720,t0);
-    o.frequency.linearRampToValueAtTime(1000,t0+0.32);
-    o.frequency.linearRampToValueAtTime(720,t0+0.66);
-    g.gain.setValueAtTime(0.0001,t0);g.gain.linearRampToValueAtTime(0.13,t0+0.08);
-    g.gain.setValueAtTime(0.13,t0+0.56);g.gain.exponentialRampToValueAtTime(0.0001,t0+0.68);
-    o.connect(g);g.connect(a.destination);o.start(t0);o.stop(t0+0.7);
-  }catch(e){}
-}
-
-// ── STORAGE (window.storage > localStorage fallback) ──
-const STORE={
-  async get(k){
-    try{if(window.storage&&window.storage.get){const r=await window.storage.get(k);return r?r.value:null;}}catch(e){}
-    try{return localStorage.getItem(k);}catch(e){return null;}
-  },
-  async set(k,v){
-    try{if(window.storage&&window.storage.set){await window.storage.set(k,v);return;}}catch(e){}
-    try{localStorage.setItem(k,v);}catch(e){}
-  },
-};
 
 // ── LEADERBOARD ──────────────────────────────────
 let LB=[];
-async function loadLB(){try{const v=await STORE.get('ts_lb_v3');LB=v?JSON.parse(v):[];}catch(e){LB=[];}}
+async function loadLB(){try{const r=await window.storage.get('ts_lb_v3');LB=r?JSON.parse(r.value):[];}catch(e){LB=[];}}
 async function saveLB(score,charName,cause){
   LB.push({score:Math.floor(score),char:charName,cause,d:new Date().toLocaleDateString('sr')});
   LB.sort((a,b)=>b.score-a.score);
   LB=LB.slice(0,10);
-  try{await STORE.set('ts_lb_v3',JSON.stringify(LB));}catch(e){}
+  try{await window.storage.set('ts_lb_v3',JSON.stringify(LB));}catch(e){}
 }
 loadLB();
-
-// ── SETTINGS (mute, persisted) ───────────────────
-let MUTED=false;
-(async()=>{try{MUTED=(await STORE.get('ts_muted'))==='1';}catch(e){}})();
-function toggleMute(){MUTED=!MUTED;STORE.set('ts_muted',MUTED?'1':'0');if(!MUTED)snd(660,0.08,0.12);}
-
-// ── HAPTICS (Vibration API) ──────────────────────
-function vib(p){if(MUTED)return;try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
 
 // ── WAGON FACTORY ────────────────────────────────
 function mkWagon(wz){
@@ -220,15 +137,13 @@ let isPortrait=false,G;
 function newGame(charId){
   const ch=CHARS.find(c=>c.id===charId)||CHARS[0];
   const wags=[];for(let i=0;i<10;i++)wags.push(mkWagon(0.02+i*(WLN+WGAP)));
-  G={ph:'play',paused:false,t:0,fr:0,score:0,spd:0.008,hue:0,shk:0,msg:'',msgT:0,
+  G={ph:'play',t:0,fr:0,score:0,spd:0.008,hue:0,shk:0,msg:'',msgT:0,
     ch,deathCause:'crash',wasOD:false,streak:0,lastHard:'',ovT:0,
     anxiety:0,panics:0,panicT:0,urgentT:3000,
     mom:{active:false,timer:40000+rn(0,20000),activeT:0},
-    suvAlert:false,suvAlertT:0,crashKind:'low',
-    raid:{active:false,warn:0,t:0,timer:22000+rn(0,16000),prox:0,sirenT:0,survived:0},
-    p:{lane:1,wx:0,jy:0,jv:0,gnd:true,eff:null,effEnd:0,mj:1,ji:0,landT:0,wasGnd:true,stepSign:0},
-    obs:[],pkp:[],parts:[],wags,obT:2400,pkT:2500,
-    gold:[],pops:[],coins:0,coinT:5000,goldMsg:false,curSp:0.008};
+    suvAlert:false,suvAlertT:0,
+    p:{lane:1,wx:0,jy:0,jv:0,gnd:true,eff:null,effEnd:0,mj:1,ji:0},
+    obs:[],pkp:[],parts:[],wags,obT:2400,pkT:2500};
 }
 G={ph:'charselect',t:0,fr:0,hoverChar:-1,ch:CHARS[0]};
 
@@ -250,9 +165,6 @@ let tx0=null,ty0=null,tt0=0,lastSwipe=0;
 
 addEventListener('keydown',e=>{
   if(KS[e.code])return;KS[e.code]=true;
-  if(e.code==='KeyM'){toggleMute();syncUI();return;}
-  if(G.ph==='play'&&(e.code==='KeyP'||e.code==='Escape')){togglePause();e.preventDefault();return;}
-  if(G.paused)return;
   if(G.ph==='overdose')return;
   if(G.ph==='charselect')return;
   if(G.ph==='dead'){G.ph='charselect';G.hoverChar=-1;return;}
@@ -283,7 +195,6 @@ CV.addEventListener('touchend',e=>{
   }
   if(G.ph==='dead'){G.ph='charselect';G.hoverChar=-1;tx0=null;return;}
   if(G.ph!=='play'){tx0=null;return;}
-  if(G.paused){togglePause();tx0=null;return;}
   if(now-lastSwipe<200){tx0=null;return;}
   if(vx>0.2&&Math.abs(dx)>25&&Math.abs(dx)>Math.abs(dy)*1.2){
     mvL(dx>0?1:-1);lastSwipe=now;
@@ -310,7 +221,6 @@ CV.addEventListener('pointerdown',e=>{
   if(G.ph==='charselect'){CHARS.forEach((c,i)=>{const bx=charCardX(i);if(mx>=bx&&mx<=bx+cW&&my>=cY&&my<=cY+cH)newGame(c.id);});return;}
   if(G.ph==='dead'){G.ph='charselect';G.hoverChar=-1;return;}
   if(G.ph!=='play')return;
-  if(G.paused){togglePause();return;}
   if(mx<W*0.3)mvL(-1);else if(mx>W*0.7)mvL(1);else doJump();
 });
 
@@ -321,7 +231,6 @@ function doJump(){
   p.jv=isH?5:p.eff==='cocaine'?10:8;
   p.gnd=false;p.ji++;snd(280,0.12,0.18);
 }
-function addPop(x,y,txt,col){G.pops.push({x:x+rn(-8,8),y,txt,col,t:1100,t0:1100});}
 function burst(x,y,col,n=12,f=5){
   for(let i=0;i<n;i++){
     const a=rn(0,PI2),sp=rn(0.5,1)*f;
@@ -367,7 +276,7 @@ function update(dt){
   // Panic attack
   if(G.anxiety>=100){
     if(G.panics>=2){G.deathCause='anxiety';die();return;}
-    G.panics++;G.anxiety=44;G.panicT=3000;G.urgentT=0;vib([0,90,70,90,70,90]);
+    G.panics++;G.anxiety=44;G.panicT=3000;G.urgentT=0;
     G.shk=26;G.msg=`⚠ NAPADAJ PANIKE ${G.panics}/2 — uhvati XANAX!`;G.msgT=3000;
     snd(160,1.0,0.4,'sawtooth');setTimeout(()=>snd(140,0.7,0.28,'sawtooth'),400);
   }
@@ -383,129 +292,33 @@ function update(dt){
   if(mc.active){mc.activeT-=dt;if(mc.activeT<=0)mc.active=false;}
   if(G.suvAlertT>0)G.suvAlertT-=dt;else G.suvAlert=false;
 
-  // Police RAID — drugačija dinamika: SUV izlazi na šine i juri te
-  const rd=G.raid;
-  if(!rd.active){
-    rd.timer-=dt;
-    if(rd.timer<=0&&G.score>14){
-      rd.active=true;rd.warn=2200;rd.t=7600;rd.prox=0;rd.sirenT=0;
-      rd.timer=26000+rn(0,18000);
-      G.msg='🚨 RACIJA! BEŽI OD POLICIJE!';G.msgT=2200;G.shk=Math.max(G.shk,12);
-      vib([0,140,80,140]);sndSiren();
-    }
-  }else{
-    rd.sirenT-=dt;if(rd.sirenT<=0){sndSiren();rd.sirenT=720;}
-    if(rd.warn>0){
-      rd.warn-=dt;rd.prox=Math.min(1,rd.prox+dt/2200);   // primiče se
-    }else{
-      rd.t-=dt;
-      // diše ti za vratom: blizu na početku, izmičeš pred kraj
-      const phase=rd.t/7600;
-      rd.prox=cl(0.55+Math.sin(G.t/240)*0.12+(0.4-phase)*0.6,0,1);
-      if(rd.t<=0){
-        rd.active=false;rd.prox=0;rd.survived++;
-        const bonus=60+G.score*0.04;G.score+=bonus;
-        G.msg='😮‍💨 IZMAKAO SI POLICIJI! +'+Math.floor(bonus);G.msgT=2600;
-        G.suvAlert=true;G.suvAlertT=1500;vib(60);
-      }
-    }
-  }
-  const raidOn=rd.active&&rd.warn<=0;
-
   // Lane / jump
   p.wx+=(LANES[p.lane]-p.wx)*0.13;
   p.jv-=isH?0.2:0.38;p.jy+=p.jv;
   if(p.jy<=0){p.jy=0;p.jv=0;p.gnd=true;p.ji=0;}
-  G.curSp=sp;
-
-  // Doskok — squash + prašina + tup zvuk
-  if(p.gnd&&!p.wasGnd){
-    p.landT=170;
-    const lp=W/2+(p.wx-LANES[1])*0.44;
-    for(let i=0;i<7;i++)G.parts.push({x:lp+rn(-20,20),y:NY+2,vx:rn(-1.6,1.6),vy:rn(-1.4,-0.2),r:rn(2,4.5),col:'rgba(140,115,88,0.7)',l:0.8,d:0.05});
-    snd(75,0.09,0.14);vib(18);
-  }
-  p.wasGnd=p.gnd;
-  if(p.landT>0)p.landT-=dt;
-
-  // Koraci — tihi naizmenični takt dok trči
-  if(p.gnd){
-    const ss=Math.sin(G.t/130)>0?1:-1;
-    if(ss!==p.stepSign){p.stepSign=ss;snd(ss>0?92:74,0.035,0.055);}
-  }
 
   const dz=sp*dt/16.67;
   G.obs.forEach(o=>o.wz-=dz);
   G.pkp.forEach(q=>q.wz-=dz*(q.urgent?2.4:1));
-  G.gold.forEach(g=>g.wz-=dz);
   G.wags.forEach(w=>w.wz-=dz);
   for(const pt of G.parts){pt.x+=pt.vx;pt.y+=pt.vy;pt.vy+=0.15;pt.l-=pt.d;}
-  for(const pp of G.pops){pp.y-=dt*0.045;pp.t-=dt;}
 
   G.obs=G.obs.filter(o=>o.wz>-0.06);
   G.pkp=G.pkp.filter(q=>q.wz>-0.06&&!q.done);
-  G.gold=G.gold.filter(g=>g.wz>-0.06&&!g.done);
-  G.pops=G.pops.filter(pp=>pp.t>0);
   G.parts=G.parts.filter(pt=>pt.l>0);
   G.wags=G.wags.filter(w=>w.wz+WLN>-0.08);
   const last=G.wags[G.wags.length-1];
   if(!last||last.wz+WLN<0.95)G.wags.push(mkWagon(last?last.wz+WLN+WGAP:0.5));
 
-  // Spawn — tematske prepreke (niska/visoka/beba/majka)
-  G.obT-=dt;
-  if(G.obT<=0){
-    const r=Math.random();
-    const type=r<0.32?'low':r<0.58?'tall':r<0.78?'baby':'mother';
-    G.obs.push({lane:ri(0,3),wz:1.0,type,announced:false,bubbleT:0});
-    G.obT=raidOn?(1050+rn(0,850)):(2300+rn(0,2600));
-  }
-  G.pkT-=dt;if(G.pkT<=0){G.pkp.push({lane:ri(0,3),wz:1.0,done:false,drug:DRUGS[ri(0,DRUGS.length)]});G.pkT=3400+rn(0,3800);}
+  // Spawn
+  G.obT-=dt;if(G.obT<=0){G.obs.push({lane:ri(0,3),wz:1.0,tall:Math.random()>0.45});G.obT=2400+rn(0,2800);}
+  G.pkT-=dt;if(G.pkT<=0){G.pkp.push({lane:ri(0,3),wz:1.0,done:false,drug:DRUGS[ri(0,DRUGS.length)]});G.pkT=3500+rn(0,4000);}
 
-  // MAMINO ZLATO — red novčića (vezano za majku koja ga traži)
-  G.coinT-=dt;
-  if(G.coinT<=0){
-    const gl=ri(0,3),n=3+ri(0,3);
-    for(let i=0;i<n;i++)G.gold.push({lane:gl,wz:1.0+i*0.055,done:false});
-    G.coinT=6000+rn(0,5000);
-    if(!G.goldMsg){G.goldMsg=true;G.msg='🪙 MAMINO ZLATO — pokupi ga!';G.msgT=2400;}
-  }
-
-  // Telegraf prepreka — čuju se/najavljuju iz daljine
-  for(const o of G.obs){
-    if(o.bubbleT>0)o.bubbleT-=dt;
-    if(!o.announced&&o.wz<0.6){
-      o.announced=true;
-      if(o.type==='mother'){sndMother();o.bubbleT=2600;}
-      else if(o.type==='baby'){sndBaby();}
-    }
-  }
-
-  // Collision — prepreke (po tipu)
+  // Collision — obstacles
   for(const o of G.obs){
     if(o.wz>0.14||o.wz<-0.01)continue;
     if(o.lane!==p.lane)continue;
-    if(o.type==='mother'){           // previsoka da se preskoči — MORAŠ na drugu traku
-      G.crashKind='mother';vib([60,40,120,40,120]);G.deathCause='crash';die();return;
-    }
-    const need=o.type==='tall'?60:o.type==='baby'?24:30;
-    if(p.jy<need*0.5){G.crashKind=o.type;vib([60,40,120]);G.deathCause='crash';die();return;}
-    // preskočio si je tik iznad — near-miss bonus
-    if(!o.nm){
-      o.nm=true;const b=o.type==='tall'?15:10;G.score+=b;
-      addPop(W/2,NY-150,'+'+b+' BLIZU!','#7dffb0');
-      snd(980,0.07,0.1,'triangle');
-    }
-  }
-
-  // Collision — zlato
-  for(const g of G.gold){
-    if(g.done||g.wz>0.12||g.wz<-0.01)continue;
-    if(g.lane!==p.lane||p.jy>42)continue;
-    g.done=true;G.coins++;G.score+=8;
-    const gp=prj(LANES[p.lane],0.06);
-    burst(gp.x,NY-30,'#ffd447',8,4);
-    addPop(gp.x,NY-90,'+8','#ffd447');
-    snd(1320,0.06,0.1,'square');snd(1760,0.09,0.07,'sine');
+    if(p.jy<(o.tall?65:30)*0.5){G.deathCause='crash';die();return;}
   }
 
   // Collision — pickups
@@ -528,7 +341,6 @@ function update(dt){
       G.streak=0;G.msg=`${d.icon} ${d.name} — ${d.msg}`;
     }
     G.msgT=3200;G.shk=10;
-    vib(d.hard?(G.streak>=2?[40,30,40,30,80]:[25,20,40]):30);
     const pp=prj(LANES[p.lane],0.1);burst(pp.x,NY-40,d.glo,20,6);
 
     // Snort/ingest sounds
@@ -560,7 +372,6 @@ async function die(){
 function triggerOD(){
   if(G.ph!=='play')return;
   G.ph='overdose';G.ovT=0;G.wasOD=true;G.deathCause='overdoza';
-  vib([200,80,200,80,400]);
   saveLB(G.score,G.ch.name,'overdoza');
   snd(58,0.35,0.4);
   setTimeout(()=>snd(52,0.45,0.34),550);
@@ -597,18 +408,8 @@ function getBG(){
   bx.fillStyle=sg;bx.fillRect(0,0,W,VY);
   bx.fillStyle='rgba(255,255,255,0.8)';
   for(let i=0;i<110;i++)bx.fillRect(Math.random()*W,Math.random()*VY,Math.random()<0.1?2:1,1);
-  // mesec sa halo sjajem
-  const mh=bx.createRadialGradient(700,40,10,700,40,85);
-  mh.addColorStop(0,'rgba(220,215,160,0.28)');mh.addColorStop(0.5,'rgba(200,195,140,0.08)');mh.addColorStop(1,'rgba(200,195,140,0)');
-  bx.fillStyle=mh;bx.beginPath();bx.arc(700,40,85,0,PI2);bx.fill();
   bx.fillStyle='#ccc870';bx.beginPath();bx.arc(700,40,18,0,PI2);bx.fill();
-  bx.fillStyle='rgba(180,175,120,0.5)';bx.beginPath();bx.arc(694,36,3,0,PI2);bx.arc(704,46,2.2,0,PI2);bx.fill();
   bx.fillStyle='#030310';bx.beginPath();bx.arc(708,35,14,0,PI2);bx.fill();
-  // niski oblaci / izmaglica
-  bx.fillStyle='rgba(30,32,60,0.5)';
-  [[110,55,90,10],[300,38,120,8],[520,62,100,11],[660,80,140,9]].forEach(([cxx,cyy,cw2,ch2])=>{
-    bx.beginPath();bx.ellipse(cxx,cyy,cw2,ch2,0,0,PI2);bx.fill();
-  });
   const bl=[[0,52],[62,82],[128,60],[195,98],[258,66],[318,86],[378,50],[445,72],[500,56],[558,90],[618,68],[672,54],[728,80],[778,60],[800,70]];
   bx.fillStyle='#07071a';bx.beginPath();bx.moveTo(0,VY);
   for(let i=0;i<bl.length-1;i++){bx.lineTo(bl[i][0],VY-bl[i][1]);bx.lineTo(bl[i+1][0]-1,VY-bl[i][1]);}
@@ -782,197 +583,30 @@ function drawSUV(){
   cx.textAlign='left';
 }
 
-// ── POLICE RAID (chase) ──────────────────────────
-function drawPoliceChase(){
-  const rd=G.raid;if(!rd||!rd.active)return;
-  const prox=rd.prox,fl=Math.floor(G.t/120)%2;
-  // pulsirajući crveno-plavi sjaj po ivicama
-  const vg=cx.createRadialGradient(W/2,H*0.62,H*0.24,W/2,H*0.62,H*0.9);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(1,fl?`rgba(255,20,45,${0.16+prox*0.2})`:`rgba(30,45,255,${0.16+prox*0.2})`);
-  cx.fillStyle=vg;cx.fillRect(0,0,W,H);
-  // auto se penje odozdo (iza igrača)
-  const sc=0.85+prox*0.75,cw=158*sc,chh=84*sc;
-  const cxp=W/2+Math.sin(G.t/360)*16*prox;
-  const y0=H-prox*(chh+30)+(1-prox)*16,x0=cxp-cw/2;
-  cx.fillStyle='rgba(0,0,0,0.42)';cx.beginPath();cx.ellipse(cxp,y0+chh,cw*0.5,12*sc,0,0,PI2);cx.fill();
-  const bdy=cx.createLinearGradient(x0,y0,x0,y0+chh);bdy.addColorStop(0,'#f6f6f6');bdy.addColorStop(1,'#bcbcbc');
-  cx.fillStyle=bdy;rr(x0,y0+chh*0.26,cw,chh*0.74,9*sc);cx.fill();
-  cx.fillStyle='#0e2236';rr(x0+cw*0.15,y0+chh*0.3,cw*0.7,chh*0.3,6*sc);cx.fill();
-  cx.fillStyle='rgba(130,170,210,0.25)';rr(x0+cw*0.17,y0+chh*0.32,cw*0.3,chh*0.18,4*sc);cx.fill();
-  // lightbar
-  const lbW=cw*0.52,lbX=cxp-lbW/2,lbY=y0+chh*0.16;
-  cx.fillStyle='#111';rr(lbX,lbY,lbW,9*sc,3*sc);cx.fill();
-  cx.shadowBlur=22*sc;
-  cx.fillStyle=fl?'#ff1133':'#3344ff';cx.shadowColor=cx.fillStyle;cx.fillRect(lbX,lbY+1*sc,lbW/2-1,7*sc);
-  cx.fillStyle=fl?'#3344ff':'#ff1133';cx.shadowColor=cx.fillStyle;cx.fillRect(lbX+lbW/2,lbY+1*sc,lbW/2,7*sc);cx.shadowBlur=0;
-  // farovi
-  cx.fillStyle='#fffce0';cx.shadowColor='#fff';cx.shadowBlur=16*sc;
-  cx.fillRect(x0+cw*0.1,y0+chh*0.66,cw*0.15,9*sc);cx.fillRect(x0+cw*0.75,y0+chh*0.66,cw*0.15,9*sc);cx.shadowBlur=0;
-  // grille
-  cx.fillStyle='#1c1c1c';cx.fillRect(x0+cw*0.3,y0+chh*0.62,cw*0.4,15*sc);
-  cx.strokeStyle='#4a4a4a';cx.lineWidth=Math.max(1,sc);
-  for(let i=1;i<5;i++){cx.beginPath();cx.moveTo(x0+cw*0.3+i*cw*0.08,y0+chh*0.62);cx.lineTo(x0+cw*0.3+i*cw*0.08,y0+chh*0.78);cx.stroke();}
-  cx.fillStyle='#0a2bbf';cx.font=`bold ${Math.max(9,13*sc)}px Arial`;cx.textAlign='center';
-  cx.fillText('POLICIJA',cxp,y0+chh*0.5);cx.textAlign='left';
-}
-function drawRaidHUD(){
-  const rd=G.raid;if(!rd||!rd.active)return;
-  cx.textAlign='center';
-  if(rd.warn>0){
-    if(Math.floor(G.t/180)%2){
-      cx.fillStyle='#ff2233';cx.font='bold 30px Courier New';cx.shadowColor='#ff0000';cx.shadowBlur=18;
-      cx.fillText('🚨 RACIJA! 🚨',W/2,H*0.22);cx.shadowBlur=0;
-    }
-  }else{
-    const fr=cl(rd.t/7600,0,1),bw=240,bx=W/2-bw/2,by=22;
-    cx.fillStyle='rgba(0,0,0,0.62)';rr(bx-3,by-3,bw+6,17,5);cx.fill();
-    cx.fillStyle='#ff3344';rr(bx,by,bw*fr,11,3);cx.fill();
-    cx.fillStyle='#fff';cx.font='bold 9px Courier New';
-    cx.fillText('🚓 BEŽI!  DO BEKSTVA: '+Math.ceil(rd.t/1000)+'s',W/2,by+9);
-  }
-  cx.textAlign='left';
-}
-
 // ── OBSTACLES ────────────────────────────────────
-function obsPrompt(px,y,sc,txt,col){
-  if(sc<0.34)return;
-  const a=Math.min(1,(sc-0.34)/0.3),fs=Math.max(7,11*sc);
-  cx.globalAlpha=a*(0.6+Math.sin(G.t/180)*0.4);
-  cx.font=`bold ${fs}px 'Courier New'`;cx.textAlign='center';
-  cx.fillStyle=col;cx.shadowColor='#000';cx.shadowBlur=4;cx.fillText(txt,px,y);cx.shadowBlur=0;
-  cx.globalAlpha=1;
-}
-function drawBarrier(o,px,gy,sc){
-  const tall=o.type==='tall',bW=56*sc,bH=(tall?64:28)*sc,x0=px-bW/2,y0=gy-bH;
-  // telo
-  cx.save();rr(x0,y0,bW,bH,3*sc);cx.clip();
-  const g=cx.createLinearGradient(x0,y0,x0,gy);
-  g.addColorStop(0,tall?'#d4651a':'#5a5048');g.addColorStop(1,tall?'#7a3208':'#2e2820');
-  cx.fillStyle=g;cx.fillRect(x0,y0,bW,bH);
-  // hazard pruge
-  cx.fillStyle=tall?'rgba(20,12,2,0.85)':'rgba(245,210,40,0.8)';
-  for(let i=-3;i<7;i++)cx.fillRect(x0+i*13*sc-(bH*0.5),y0,7*sc,bH+1);
-  cx.restore();
-  rr(x0,y0,bW,bH,3*sc);cx.strokeStyle='rgba(0,0,0,0.6)';cx.lineWidth=Math.max(1,1.6*sc);cx.stroke();
-  // gornja ivica svetlo
-  cx.fillStyle='rgba(255,255,255,0.18)';cx.fillRect(x0+2*sc,y0,bW-4*sc,Math.max(1,2*sc));
-  if(tall&&sc>0.4){cx.fillStyle='#111';cx.font=`${14*sc}px serif`;cx.textAlign='center';cx.fillText('⚠',px,y0+bH*0.6);}
-  obsPrompt(px,y0-7*sc,sc,'⬆ SKOČI','#ffd24a');
-}
-function drawBaby(o,px,gy,sc){
-  const bob=Math.sin(G.t/200+o.lane)*2*sc,cy=gy-15*sc+bob;
-  // ćebence/pelena
-  cx.fillStyle='#e9a8c4';cx.beginPath();cx.ellipse(px,cy+4*sc,17*sc,12*sc,0,0,PI2);cx.fill();
-  cx.fillStyle='#f4c4da';cx.beginPath();cx.ellipse(px,cy+2*sc,13*sc,9*sc,0,0,PI2);cx.fill();
-  // glava
-  cx.fillStyle='#e8b48c';cx.beginPath();cx.arc(px,cy-8*sc,9*sc,0,PI2);cx.fill();
-  cx.fillStyle='rgba(0,0,0,0.12)';cx.beginPath();cx.arc(px+3*sc,cy-7*sc,9*sc,0,PI2);cx.fill();
-  // čuperak
-  cx.strokeStyle='#3a2410';cx.lineWidth=Math.max(1,1.4*sc);
-  cx.beginPath();cx.moveTo(px-1*sc,cy-16*sc);cx.lineTo(px+1*sc,cy-19*sc);cx.stroke();
-  // oči zatvorene (plač) + usta
-  cx.strokeStyle='#2a1808';cx.lineWidth=Math.max(1,1.2*sc);
-  cx.beginPath();cx.moveTo(px-5*sc,cy-9*sc);cx.lineTo(px-2*sc,cy-8*sc);
-  cx.moveTo(px+2*sc,cy-9*sc);cx.lineTo(px+5*sc,cy-8*sc);cx.stroke();
-  cx.fillStyle='#7a2018';cx.beginPath();cx.ellipse(px,cy-3*sc,2.4*sc,3*sc,0,0,PI2);cx.fill();
-  // suze
-  if(sc>0.4){cx.fillStyle='rgba(140,200,255,0.85)';
-    [[-4,(G.t/9%14)],[4,((G.t/9+7)%14)]].forEach(([dx,dy])=>{cx.beginPath();cx.arc(px+dx*sc,cy-6*sc+dy*sc,1.6*sc,0,PI2);cx.fill();});}
-  obsPrompt(px,gy-34*sc,sc,'⬆ SKOČI','#9fe0ff');
-}
-function drawMother(o,px,gy,sc){
-  const H0=128*sc,x=px;
-  // suknja (trapez)
-  const sw=30*sc,hipY=gy-H0*0.46;
-  cx.fillStyle='#2a2030';cx.beginPath();
-  cx.moveTo(x-12*sc,hipY);cx.lineTo(x+12*sc,hipY);cx.lineTo(x+sw,gy);cx.lineTo(x-sw,gy);cx.closePath();cx.fill();
-  cx.fillStyle='rgba(255,255,255,0.05)';cx.fillRect(x-3*sc,hipY,3*sc,gy-hipY);
-  // torzo (kecelja)
-  const tg=cx.createLinearGradient(x-16*sc,0,x+16*sc,0);
-  tg.addColorStop(0,'#4a1530');tg.addColorStop(0.5,'#6e2046');tg.addColorStop(1,'#3a1024');
-  cx.fillStyle=tg;cx.beginPath();
-  cx.moveTo(x-15*sc,hipY+4*sc);cx.lineTo(x-13*sc,gy-H0*0.72);
-  cx.lineTo(x+13*sc,gy-H0*0.72);cx.lineTo(x+15*sc,hipY+4*sc);cx.closePath();cx.fill();
-  // ruke na bokovima (ljutito)
-  cx.strokeStyle='#5a1a3a';cx.lineWidth=6*sc;cx.lineCap='round';
-  cx.beginPath();cx.moveTo(x-13*sc,gy-H0*0.66);cx.lineTo(x-22*sc,gy-H0*0.5);cx.lineTo(x-14*sc,gy-H0*0.42);cx.stroke();
-  cx.beginPath();cx.moveTo(x+13*sc,gy-H0*0.66);cx.lineTo(x+22*sc,gy-H0*0.5);cx.lineTo(x+14*sc,gy-H0*0.42);cx.stroke();
-  cx.lineCap='butt';
-  // vrat+glava
-  const hy=gy-H0*0.82;
-  cx.fillStyle='#c79b74';cx.fillRect(x-4*sc,hy,8*sc,8*sc);
-  cx.fillStyle='#cda07a';cx.beginPath();cx.arc(x,hy-6*sc,11*sc,0,PI2);cx.fill();
-  // ljute obrve + oči + namrgođena usta (na donjem delu lica)
-  cx.strokeStyle='#1a0e08';cx.lineWidth=Math.max(1,1.5*sc);
-  cx.beginPath();cx.moveTo(x-7*sc,hy-4*sc);cx.lineTo(x-2*sc,hy-2*sc);
-  cx.moveTo(x+7*sc,hy-4*sc);cx.lineTo(x+2*sc,hy-2*sc);cx.stroke();
-  cx.fillStyle='#1a0e08';cx.beginPath();cx.arc(x-4*sc,hy-1*sc,1.4*sc,0,PI2);cx.arc(x+4*sc,hy-1*sc,1.4*sc,0,PI2);cx.fill();
-  cx.strokeStyle='#1a0e08';cx.beginPath();cx.arc(x,hy+6*sc,3*sc,1.15*Math.PI,1.85*Math.PI);cx.stroke();
-  // marama (babuška) — preko temena, lice ostaje vidljivo
-  cx.fillStyle='#b83232';
-  cx.beginPath();cx.arc(x,hy-7*sc,12*sc,Math.PI*1.04,Math.PI*1.96,false);
-  cx.lineTo(x+10*sc,hy-5*sc);cx.lineTo(x-10*sc,hy-5*sc);cx.closePath();cx.fill();
-  // bočni okviri uz lice
-  cx.beginPath();cx.moveTo(x-11.5*sc,hy-5*sc);cx.lineTo(x-8*sc,hy+7*sc);cx.lineTo(x-5*sc,hy+5*sc);cx.lineTo(x-9*sc,hy-5*sc);cx.closePath();cx.fill();
-  cx.beginPath();cx.moveTo(x+11.5*sc,hy-5*sc);cx.lineTo(x+8*sc,hy+7*sc);cx.lineTo(x+5*sc,hy+5*sc);cx.lineTo(x+9*sc,hy-5*sc);cx.closePath();cx.fill();
-  cx.fillStyle='rgba(255,255,255,0.14)';cx.beginPath();cx.arc(x-4*sc,hy-10*sc,3*sc,0,PI2);cx.fill();
-  // govorni balon
-  if(o.bubbleT>0&&sc>0.3){
-    const a=Math.min(1,o.bubbleT/400);cx.globalAlpha=a;
-    const bw=128*sc,bh=30*sc,bx=x-bw/2,byb=hy-30*sc-bh;
-    cx.fillStyle='#fff';rr(bx,byb,bw,bh,6*sc);cx.fill();
-    cx.beginPath();cx.moveTo(x-6*sc,byb+bh);cx.lineTo(x+6*sc,byb+bh);cx.lineTo(x,byb+bh+9*sc);cx.closePath();cx.fill();
-    cx.fillStyle='#a01818';cx.font=`bold ${Math.max(8,11*sc)}px 'Courier New'`;cx.textAlign='center';
-    cx.fillText('GDE JE MOJE',x,byb+bh*0.42);cx.fillText('ZLATO?!',x,byb+bh*0.82);
-    cx.globalAlpha=1;
-  }
-  obsPrompt(px,gy-H0-6*sc,sc,'← PROMENI TRAKU →','#ff5252');
-}
 function drawObs(o){
-  if(o.wz>0.985)return;
-  const p=prj(LANES[o.lane],o.wz),sc=p.s,px=p.x,gy=p.y;
-  // senka na tlu — vidljiva i iz daljine (telegraf)
-  cx.fillStyle=`rgba(0,0,0,${0.16+sc*0.32})`;
-  cx.beginPath();cx.ellipse(px,gy,30*sc,7*sc,0,0,PI2);cx.fill();
-  if(o.type==='mother')drawMother(o,px,gy,sc);
-  else if(o.type==='baby')drawBaby(o,px,gy,sc);
-  else drawBarrier(o,px,gy,sc);
+  if(o.wz>0.97)return;
+  const p=prj(LANES[o.lane],o.wz),sc=p.s,bW=58*sc,bH=(o.tall?68:30)*sc;
+  cx.fillStyle=`rgba(0,0,0,${sc*0.4})`;cx.beginPath();cx.ellipse(p.x,p.y,bW*0.55,5*sc,0,0,PI2);cx.fill();
+  if(o.tall){
+    cx.save();rr(p.x-bW/2,p.y-bH,bW,bH,3*sc);cx.fillStyle=`rgba(225,85,0,${0.6+sc*0.35})`;cx.fill();cx.clip();
+    cx.fillStyle=`rgba(255,205,0,${sc*0.6})`;for(let i=-4;i<6;i++)cx.fillRect(p.x-bW/2+i*12*sc,p.y-bH,6*sc,bH);
+    cx.restore();rr(p.x-bW/2,p.y-bH,bW,bH,3*sc);
+    cx.strokeStyle='rgba(200,60,0,0.8)';cx.lineWidth=1.5*sc;cx.stroke();
+    cx.font=`${Math.max(10,16*sc)}px serif`;cx.textAlign='center';cx.fillText('⚠',p.x,p.y-bH*0.38);
+    cx.fillStyle='rgba(255,255,255,0.95)';cx.font=`bold ${Math.max(5,7*sc)}px Arial`;cx.fillText('SKOČI!',p.x,p.y-bH*0.72);
+  }else{
+    cx.fillStyle=`rgba(80,72,62,${0.65+sc*0.3})`;rr(p.x-bW/2,p.y-bH,bW,bH,2*sc);cx.fill();
+    cx.fillStyle='rgba(255,255,255,0.9)';cx.font=`bold ${Math.max(5,7*sc)}px Arial`;cx.textAlign='center';cx.fillText('SKOČI!',p.x,p.y-bH*0.38);
+  }
   cx.textAlign='left';
-}
-
-// ── GOLD (mamino zlato) ──────────────────────────
-function drawGold(g){
-  if(g.done||g.wz>0.99)return;
-  const p=prj(LANES[g.lane],g.wz),sc=p.s;
-  const fy=Math.sin(G.t/240+g.wz*40)*3*sc,cy=p.y-16*sc+fy,R=Math.max(3.5,10*sc);
-  // spin — širina osciluje
-  const spin=Math.abs(Math.sin(G.t/180+g.wz*30)),rw=Math.max(1.2,R*spin);
-  cx.fillStyle='rgba(0,0,0,0.3)';cx.beginPath();cx.ellipse(p.x,p.y,R*0.9,2.6*sc,0,0,PI2);cx.fill();
-  const gg=cx.createRadialGradient(p.x,cy,0,p.x,cy,R*2.2);
-  gg.addColorStop(0,'rgba(255,215,70,0.5)');gg.addColorStop(1,'rgba(255,215,70,0)');
-  cx.fillStyle=gg;cx.beginPath();cx.arc(p.x,cy,R*2.2,0,PI2);cx.fill();
-  cx.fillStyle='#c98f10';cx.beginPath();cx.ellipse(p.x,cy,rw,R,0,0,PI2);cx.fill();
-  cx.fillStyle='#ffd447';cx.beginPath();cx.ellipse(p.x,cy,rw*0.78,R*0.78,0,0,PI2);cx.fill();
-  if(spin>0.55&&sc>0.25){cx.fillStyle='#c98f10';cx.font=`bold ${Math.max(5,R)}px serif`;cx.textAlign='center';cx.fillText('★',p.x,cy+R*0.36);cx.textAlign='left';}
-  cx.fillStyle='rgba(255,255,255,0.75)';cx.beginPath();cx.ellipse(p.x-rw*0.3,cy-R*0.4,rw*0.2,R*0.16,-0.5,0,PI2);cx.fill();
 }
 
 // ── PICKUPS ──────────────────────────────────────
 function drawPickup(q){
-  if(q.done||q.wz>0.99)return;
+  if(q.done||q.wz>0.97)return;
   const p=prj(LANES[q.lane],q.wz),sc=p.s,d=q.drug;
-  const fy=Math.sin(G.t/360+q.lane*2.1)*8*sc,px=p.x,py=p.y-58*sc+fy,R=Math.max(8,42*sc);
-  // TELEGRAF: marker na tlu + svetlosni stub — vidljivo iz daljine
-  const mr=Math.max(6,26*sc),mp=0.6+Math.sin(G.t/220+q.lane)*0.4;
-  const mg=cx.createRadialGradient(px,p.y,0,px,p.y,mr*1.6);
-  mg.addColorStop(0,d.glo+'aa');mg.addColorStop(1,d.glo+'00');
-  cx.fillStyle=mg;cx.beginPath();cx.ellipse(px,p.y,mr*1.4,mr*0.5,0,0,PI2);cx.fill();
-  cx.strokeStyle=d.glo+'cc';cx.lineWidth=Math.max(1,2*sc);
-  cx.beginPath();cx.ellipse(px,p.y,mr*mp,mr*0.38*mp,0,0,PI2);cx.stroke();
-  const bg=cx.createLinearGradient(px,p.y,px,py);
-  bg.addColorStop(0,d.glo+'55');bg.addColorStop(1,d.glo+'00');
-  cx.fillStyle=bg;cx.fillRect(px-Math.max(2,5*sc),py,Math.max(4,10*sc),p.y-py);
+  const fy=Math.sin(G.t/360+q.lane*2.1)*8*sc,px=p.x,py=p.y-58*sc+fy,R=Math.max(18,42*sc);
   const gl=cx.createRadialGradient(px,py,0,px,py,R*2.8);
   gl.addColorStop(0,d.glo+'cc');gl.addColorStop(1,d.glo+'00');
   cx.fillStyle=gl;cx.fillRect(px-R*3,py-R*3,R*6,R*6);
@@ -1011,13 +645,8 @@ function drawPlayer(){
   // Shadow
   const ss=Math.max(0.3,1-p.jy*0.018);
   cx.fillStyle=`rgba(0,0,0,${0.45*ss})`;cx.beginPath();cx.ellipse(plX,NY+4,28*ss,9*ss,0,0,PI2);cx.fill();
-  // Naginjanje u promeni trake + squash na doskoku
-  const lean=cl((LANES[p.lane]-p.wx)*0.0024,-0.16,0.16);
-  const sq=p.landT>0?1-0.07*Math.sin((p.landT/170)*Math.PI):1;
-  cx.save();cx.translate(plX,bY);cx.rotate(lean);cx.scale(2-sq,sq);cx.translate(-plX,-bY);
-  // Shoes + animirane noge — run cycle sa savijanjem kolena
+  // Shoes
   const shoeCol='#e8e6e0',soleCol='#1a1a1a';
-  const stride=p.gnd?Math.sin(G.t/130):0;
   function drawShoe(ox,oy,flip){
     const f=flip?-1:1;
     cx.fillStyle=shoeCol;cx.beginPath();
@@ -1025,26 +654,16 @@ function drawPlayer(){
     cx.lineTo(ox+12*f,oy+10);cx.bezierCurveTo(ox+15*f,oy+8,ox+15*f,oy+3,ox+12*f,oy);cx.closePath();cx.fill();
     cx.fillStyle=soleCol;cx.fillRect(ox-9*f,oy+9,21,5);
   }
-  // prašina iza stopala dok trči
-  if(p.gnd){const d=Math.abs(stride);cx.fillStyle=`rgba(125,105,85,${0.16*d})`;
-    cx.beginPath();cx.ellipse(plX-stride*16,bY+3,9*d+3,4,0,0,PI2);cx.fill();}
-  function drawRunLeg(side){
-    const air=!p.gnd;
-    // u vazduhu: tuck poza — prednje koleno gore, zadnja noga savijena
-    const ph=air?(side<0?0.8:-0.35):(side<0?stride:-stride);
-    const hipX=plX+side*8,hipY=bY-30;
-    const lift=Math.max(0,ph)*11+(air?9:0);
-    const kneeX=hipX+side*2+ph*5,kneeY=hipY+14-lift*0.35;
-    const footX=hipX+ph*10,footY=bY-lift;
-    const lg=cx.createLinearGradient(hipX-7,0,hipX+7,0);
-    lg.addColorStop(0,'#142a54');lg.addColorStop(0.5,'#1e3a72');lg.addColorStop(1,'#0e2046');
-    cx.strokeStyle=lg;cx.lineWidth=12;cx.lineCap='round';cx.lineJoin='round';
-    cx.beginPath();cx.moveTo(hipX,hipY);cx.lineTo(kneeX,kneeY);cx.lineTo(footX,footY);cx.stroke();
-    cx.lineCap='butt';
-    drawShoe(footX,footY-2,side>0);
+  drawShoe(plX-12,bY+ls*0.28,false);drawShoe(plX+12,bY-ls*0.28,true);
+  // Jeans
+  function drawLeg(ox,offset){
+    const lg=cx.createLinearGradient(ox-8,0,ox+8,0);
+    lg.addColorStop(0,'#162e5c');lg.addColorStop(0.5,'#1e3a72');lg.addColorStop(1,'#102248');
+    cx.fillStyle=lg;cx.beginPath();
+    cx.moveTo(ox-7,bY-32+offset);cx.bezierCurveTo(ox-8,bY-18,ox-7,bY-8,ox-6,bY);
+    cx.lineTo(ox+6,bY);cx.bezierCurveTo(ox+7,bY-8,ox+8,bY-18,ox+7,bY-32+offset);cx.closePath();cx.fill();
   }
-  // noga u zamahu (podignuta) ide iza planuće
-  if(stride>0){drawRunLeg(-1);drawRunLeg(1);}else{drawRunLeg(1);drawRunLeg(-1);}
+  drawLeg(plX-9,0);drawLeg(plX+9,0);
   // Jacket colour based on effect
   const effJC={heroin:'#2a0505',acid:`hsl(${G.hue},40%,15%)`,cocaine:'#08122a',
     speed:'#1e0a02',weed:'#061408',ketamine:'#030e14',crack:'#1a0800',ecstasy:'#1a0016'};
@@ -1115,7 +734,6 @@ function drawPlayer(){
     cx.fillStyle=`rgba(160,210,255,${sw*0.85})`;
     [[-14,-78],[16,-82],[-19,-88]].forEach(([dx,dy])=>{cx.beginPath();cx.arc(plX+dx,bY+dy,sw*2.2,0,PI2);cx.fill();});
   }
-  cx.restore();
 }
 
 function drawHair(plX,bY,ch){
@@ -1168,17 +786,6 @@ function drawHair(plX,bY,ch){
 
 // ── DRUG FX ──────────────────────────────────────
 function drawFX(){
-  // brzinske linije kad juriš — osećaj brzine (nezavisno od droge)
-  const v=G.curSp||0.008;
-  if(v>0.0115){
-    const k=Math.min(1,(v-0.0115)/0.012);
-    cx.strokeStyle=`rgba(255,255,255,${0.05+k*0.07})`;
-    for(let i=0;i<Math.floor(4+k*10);i++){
-      const sy=20+rn(0,H-40);cx.lineWidth=0.5+rn(0,1.5);
-      const ln=40+rn(0,150)*k;
-      cx.beginPath();cx.moveTo(sy%2?rn(0,90):W-rn(0,90),sy);cx.lineTo(sy%2?rn(0,90)+ln:W-rn(0,90)-ln,sy);cx.stroke();
-    }
-  }
   const e=G.p.eff;if(!e)return;
   if(e==='heroin'){
     const vg=cx.createRadialGradient(W/2,H/2,H*0.18,W/2,H/2,H*0.9);
@@ -1301,15 +908,6 @@ function drawHUD(){
   cx.fillText(String(Math.floor(G.score)).padStart(5,'0'),W-14,32);
   cx.font='10px Courier New';cx.fillStyle='#444';
   const hi=LB.length>0?LB[0].score:0;cx.fillText(`HI ${String(hi).padStart(5,'0')}`,W-14,46);
-  // Zlato brojač
-  if(G.coins>0){cx.fillStyle='#ffd447';cx.font='bold 12px Courier New';cx.fillText(`🪙 ${G.coins}`,W-14,100);}
-  // Leteći score popup-i
-  for(const pp of G.pops){
-    cx.globalAlpha=Math.max(0,pp.t/pp.t0);
-    cx.font='bold 15px Courier New';cx.textAlign='center';
-    cx.fillStyle=pp.col;cx.shadowColor='#000';cx.shadowBlur=5;cx.fillText(pp.txt,pp.x,pp.y);cx.shadowBlur=0;
-  }
-  cx.globalAlpha=1;cx.textAlign='right';
   // Anxiety bar
   const pct=G.anxiety/100,bX=W-14-120,bY2=56;
   cx.fillStyle='rgba(0,0,0,0.55)';rr(bX-2,bY2-2,124,14,4);cx.fill();
@@ -1391,18 +989,14 @@ function drawCharSelect(){
 // ── DEAD SCREEN ──────────────────────────────────
 function drawDead(){
   cx.fillStyle='rgba(0,0,0,0.88)';cx.fillRect(0,0,W,H);cx.textAlign='center';
-  const crashTitles={mother:'MAJKA TE STIGLA!',baby:'BEBA!',low:'SUDAR!',tall:'SUDAR!'};
-  const crashSubs={mother:'Majka te uhvatila tražeći svoje zlato — moraš da je zaobiđeš!',
-    baby:'Spotakao si se o bebu na šinama...',low:'Udario si u prepreku — skoči na vreme!',tall:'Udario si u prepreku — skoči na vreme!'};
-  const dc=G.deathCause;
-  const titles={crash:crashTitles[G.crashKind]||'UHVAĆEN!',overdoza:'OVERDOZA',anxiety:'NAPADAJ PANIKE!'};
+  const titles={crash:'UHVAĆEN!',overdoza:'OVERDOZA',anxiety:'NAPADAJ PANIKE!'};
   const colors={crash:'#e74c3c',overdoza:'#ff2222',anxiety:'#ff8c00'};
+  const dc=G.deathCause;
   cx.fillStyle=colors[dc]||'#e74c3c';cx.font=`bold ${G.wasOD?42:50}px Courier New`;
   cx.shadowColor=colors[dc];cx.shadowBlur=25;cx.fillText(titles[dc]||'UHVAĆEN!',W/2,H*0.14);cx.shadowBlur=0;
-  if(dc==='crash')cx.fillStyle='#ffaa77',cx.font='11px Courier New',cx.fillText(crashSubs[G.crashKind]||'',W/2,H*0.2);
   if(dc==='anxiety')cx.fillStyle='#ffaa77',cx.font='11px Courier New',cx.fillText(`${G.ch.emoji} ${G.ch.name} nije mogao da podnese anksioznost bez droge`,W/2,H*0.2);
   if(G.wasOD)cx.fillStyle='#ffaaaa',cx.font='11px Courier New',cx.fillText('Heroin/Ketamin/Krek blokira disanje — pozovi 112 · Nalokson spašava živote',W/2,H*0.2);
-  cx.fillStyle='#f1c40f';cx.font='bold 14px Courier New';cx.fillText(`${G.ch.emoji}  ${G.ch.name}  —  ${Math.floor(G.score)} bodova${G.coins?`  ·  🪙 ${G.coins}`:''}`,W/2,H*0.27);
+  cx.fillStyle='#f1c40f';cx.font='bold 14px Courier New';cx.fillText(`${G.ch.emoji}  ${G.ch.name}  —  ${Math.floor(G.score)} bodova`,W/2,H*0.27);
   // Leaderboard
   if(LB.length>0){
     cx.fillStyle='#111';rr(W/2-210,H*0.32,420,H*0.54,6);cx.fill();cx.strokeStyle='#222';cx.lineWidth=1;rr(W/2-210,H*0.32,420,H*0.54,6);cx.stroke();
@@ -1448,137 +1042,27 @@ function render(){
   cx.save();
   if(G.shk>0)cx.translate(rn(-G.shk,G.shk),rn(-G.shk*0.5,G.shk*0.5));
   if(G.p&&G.p.eff==='acid')cx.filter=`hue-rotate(${G.hue}deg) saturate(2.5) brightness(1.06)`;
-  drawScene();
-  if(!(G.raid&&G.raid.active))drawSUV();
-  [...G.obs.map(o=>({...o,_:'o'})),...G.pkp.filter(q=>!q.done).map(q=>({...q,_:'p'})),
-   ...(G.gold||[]).filter(g=>!g.done).map(g=>({...g,_:'g'}))]
-    .sort((a,b)=>b.wz-a.wz).forEach(obj=>obj._==='o'?drawObs(obj):obj._==='p'?drawPickup(obj):drawGold(obj));
-  drawPoliceChase();
+  drawScene();drawSUV();
+  [...G.obs.map(o=>({...o,_:'o'})),...G.pkp.filter(q=>!q.done).map(q=>({...q,_:'p'}))]
+    .sort((a,b)=>b.wz-a.wz).forEach(obj=>obj._==='o'?drawObs(obj):drawPickup(obj));
   drawPlayer();drawFX();drawAnxiety();
   for(const pt of G.parts){cx.globalAlpha=Math.max(0,pt.l);cx.fillStyle=pt.col;cx.beginPath();cx.arc(pt.x,pt.y,pt.r,0,PI2);cx.fill();}
   cx.globalAlpha=1;cx.filter='none';cx.restore();
-  if(G.ph==='play'){drawHUD();drawRaidHUD();drawMomCall();if(G.paused)drawPause();}
+  if(G.ph==='play'){drawHUD();drawMomCall();}
   if(G.ph==='overdose'){drawOverdose();drawHUD();}
   if(G.ph==='dead')drawDead();
 }
 
-// ── PAUSE ────────────────────────────────────────
-let pauseStart=0;
-function togglePause(){
-  if(G.ph!=='play')return;
-  G.paused=!G.paused;
-  if(G.paused){pauseStart=Date.now();snd(330,0.08,0.1);}
-  else{
-    // Realno vreme je teklo tokom pauze — pomeri Date.now() tajmere droge
-    const dp=Date.now()-pauseStart;if(G.p.effEnd)G.p.effEnd+=dp;
-    snd(440,0.08,0.1);
-  }
-  syncUI();
-}
-function drawPause(){
-  cx.fillStyle='rgba(0,0,0,0.72)';cx.fillRect(0,0,W,H);
-  cx.textAlign='center';
-  cx.fillStyle='#f1c40f';cx.font='bold 40px Courier New';
-  cx.shadowColor='#000';cx.shadowBlur=16;cx.fillText('⏸ PAUZA',W/2,H*0.44);cx.shadowBlur=0;
-  cx.fillStyle='#888';cx.font='13px Courier New';
-  cx.fillText('Tapni ekran ili pritisni P za nastavak',W/2,H*0.55);
-  cx.fillStyle='#444';cx.font='11px Courier New';
-  cx.fillText(`${G.ch.emoji} ${G.ch.name}  ·  ${Math.floor(G.score)} bodova`,W/2,H*0.62);
-  cx.textAlign='left';
-}
-
-// ── UI SYNC (DOM dugmad) ─────────────────────────
-const elMute=document.getElementById('bMute');
-const elPause=document.getElementById('bPause');
-const elShare=document.getElementById('bShare');
-function syncUI(){
-  elMute.textContent=MUTED?'🔇':'🔊';
-  elPause.textContent=G.paused?'▶':'⏸';
-  elPause.classList.toggle('hidden',G.ph!=='play');
-  elShare.style.display=G.ph==='dead'?'block':'none';
-}
-elMute.addEventListener('click',()=>{toggleMute();syncUI();});
-elPause.addEventListener('click',()=>togglePause());
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&G.ph==='play'&&!G.paused)togglePause();});
-
-// ── SHAREABLE DEATH CARD (Canvas → PNG) ──────────
-const CARD_FACTS={
-  crash:'Zavisnost te ne uhvati odjednom — nego korak po korak, dok ne pomisliš da kontrolišeš situaciju.',
-  overdoza:'Opijati (heroin, fentanil) zaustavljaju disanje. Nalokson (Narcan) poništava predoziranje — pozovi 112.',
-  anxiety:'Droga ne leči anksioznost — odlaže je i pojačava. Pravo olakšanje je razgovor i pomoć, ne sledeća doza.',
-};
-function buildCard(){
-  const cw=720,chh=900,cc=document.createElement('canvas');cc.width=cw;cc.height=chh;
-  const x=cc.getContext('2d');
-  const titles={crash:'UHVAĆEN',overdoza:'OVERDOZA',anxiety:'NAPADAJ PANIKE'};
-  const colors={crash:'#e74c3c',overdoza:'#ff2222',anxiety:'#ff8c00'};
-  const dc=G.deathCause,col=colors[dc]||'#e74c3c';
-  // BG
-  const bg=x.createLinearGradient(0,0,0,chh);bg.addColorStop(0,'#0a0a0a');bg.addColorStop(1,'#160606');
-  x.fillStyle=bg;x.fillRect(0,0,cw,chh);
-  x.strokeStyle=col;x.lineWidth=6;x.strokeRect(18,18,cw-36,chh-36);
-  x.textAlign='center';
-  // Brand
-  x.fillStyle='#c0392b';x.font='bold 30px Courier New';x.fillText('TRAINSPOTTING RUNNER',cw/2,82);
-  // Cause
-  x.fillStyle=col;x.font='bold 74px Courier New';x.shadowColor=col;x.shadowBlur=30;
-  x.fillText(titles[dc]||'UHVAĆEN',cw/2,200);x.shadowBlur=0;
-  // Character
-  x.font='84px serif';x.fillText(G.ch.emoji,cw/2,310);
-  x.fillStyle='#f5f5f0';x.font='bold 26px Courier New';x.fillText(G.ch.name,cw/2,352);
-  // Score
-  x.fillStyle='#888';x.font='15px Courier New';x.fillText('REZULTAT',cw/2,420);
-  x.fillStyle='#f1c40f';x.font='bold 110px Courier New';x.fillText(String(Math.floor(G.score)),cw/2,520);
-  if(G.wasOD&&G.lastHard){x.fillStyle='#ff9999';x.font='17px Courier New';x.fillText(`uzrok: ${G.lastHard} × 3 zaredom`,cw/2,560);}
-  else if(G.coins){x.fillStyle='#ffd447';x.font='bold 19px Courier New';x.fillText(`🪙 ${G.coins} maminog zlata`,cw/2,560);}
-  // Fact box
-  const fact=CARD_FACTS[dc]||CARD_FACTS.crash;
-  x.fillStyle='rgba(255,255,255,0.05)';x.fillRect(50,600,cw-100,180);
-  x.strokeStyle='rgba(255,255,255,0.12)';x.lineWidth=1;x.strokeRect(50,600,cw-100,180);
-  x.fillStyle=col;x.font='bold 15px Courier New';x.fillText('⚠  ZNAŠ LI?',cw/2,636);
-  x.fillStyle='#e8e8e4';x.font='18px Courier New';
-  // wrap fact
-  const words=fact.split(' ');let line='',ly=672;
-  words.forEach(w=>{const t=line+w+' ';if(x.measureText(t).width>cw-130&&line){x.fillText(line.trim(),cw/2,ly);line=w+' ';ly+=28;}else line=t;});
-  if(line)x.fillText(line.trim(),cw/2,ly);
-  // Footer
-  x.fillStyle='#c0392b';x.font='bold 22px Courier New';x.fillText('#TrainspottingGame',cw/2,chh-58);
-  x.fillStyle='#555';x.font='14px Courier New';x.fillText('Možeš li bolje? Igraj i podeli svoj rezultat.',cw/2,chh-32);
-  x.textAlign='left';
-  return cc;
-}
-async function shareCard(){
-  let cc;try{cc=buildCard();}catch(e){return;}
-  const cause=G.wasOD?'overdoze':G.deathCause==='anxiety'?'anksioznosti':'policije';
-  const txt=`Skupio sam ${Math.floor(G.score)} bodova u Trainspotting Runner-u pre nego što me sredila doza ${cause}. Probaj i ti! #TrainspottingGame`;
-  cc.toBlob(async(blob)=>{
-    if(!blob)return;
-    const file=new File([blob],'trainspotting-score.png',{type:'image/png'});
-    try{
-      if(navigator.canShare&&navigator.canShare({files:[file]})){
-        await navigator.share({files:[file],title:'Trainspotting Runner',text:txt});return;
-      }
-    }catch(e){if(e&&e.name==='AbortError')return;}
-    // Fallback: download
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-    a.download='trainspotting-score.png';document.body.appendChild(a);a.click();a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href),1500);
-  },'image/png');
-}
-elShare.addEventListener('click',shareCard);
-
 // ── LOOP ─────────────────────────────────────────
-let prevT=0,uiSig='';
+let prevT=0;
 function loop(ts){
   requestAnimationFrame(loop);
   const dt=Math.min(ts-prevT,50);prevT=ts;
   G.t+=dt;G.fr++;
   if(isPortrait){render();return;}
-  if(G.ph==='play'){if(!G.paused)update(dt);}
+  if(G.ph==='play')update(dt);
   else if(G.ph==='overdose'){G.ovT+=dt;if(G.ovT>6200)G.ph='dead';}
   render();
-  const sig=G.ph+'|'+G.paused+'|'+MUTED;
-  if(sig!==uiSig){uiSig=sig;syncUI();}
 }
 requestAnimationFrame(loop);
 </script>

@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Trainspotting ARENA — dota mod</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{height:100%}
+body{width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#000;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+  display:flex;align-items:center;justify-content:center}
+canvas{display:block;touch-action:none;cursor:pointer}
+#ui{position:fixed;top:10px;left:10px;display:flex;gap:8px;z-index:10}
+#ui button,#ui a{width:38px;height:38px;border:1px solid #2a2a2a;border-radius:9px;
+  background:rgba(12,12,12,0.78);color:#f5f5f0;font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;text-decoration:none;line-height:1}
+</style>
+</head><body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <a href="index.html" title="Nazad na runner">🏃</a>
+  <a href="mario.html" title="PRVO LICE — mario mod">🍄</a>
+  <button id="bMute" title="Zvuk (M)">🔊</button>
+</div>
+<script>
+'use strict';
+const CV=document.getElementById('c');
+const W=CV.width=900,H=CV.height=560;
+const cx=CV.getContext('2d');
+const PI2=Math.PI*2;
+const rn=(a,b)=>a+Math.random()*(b-a);
+const ri=(a,b)=>Math.floor(rn(a,b));
+const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+const dist=(a,b,c,d)=>Math.hypot(c-a,d-b);
+
+function resize(){
+  const s=Math.min(innerWidth/W,innerHeight/H);
+  CV.style.width=W*s+'px';CV.style.height=H*s+'px';
+}
+addEventListener('resize',resize);resize();
+
+// ── AUDIO ────────────────────────────────────────
+let MUTED=false;
+try{MUTED=localStorage.getItem('ts_muted')==='1';}catch(e){}
+let AC;function ga(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();return AC;}
+function snd(f,d,v=0.2,t='sine'){
+  if(MUTED)return;
+  try{const a=ga(),o=a.createOscillator(),g=a.createGain();
+    o.type=t;o.frequency.setValueAtTime(f,a.currentTime);
+    g.gain.setValueAtTime(v,a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);
+    o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+d);
+  }catch(e){}
+}
+const elMute=document.getElementById('bMute');
+function syncMute(){elMute.textContent=MUTED?'🔇':'🔊';}
+elMute.addEventListener('click',()=>{MUTED=!MUTED;try{localStorage.setItem('ts_muted',MUTED?'1':'0');}catch(e){}syncMute();});
+syncMute();
+function vib(p){if(MUTED)return;try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
+
+// ── SATIRA + EDUKACIJA ───────────────────────────
+const FACTS=[
+  '💊 Benzodiazepini (Xanax) stvaraju fizičku zavisnost već posle par nedelja redovne upotrebe.',
+  '⚡ Amfetamini dižu pritisak i temperaturu — "crash" posle je nesanica, depresija i paranoja.',
+  '🍃 Kanabis usporava reflekse i pamćenje; kod mladih utiče na razvoj mozga.',
+  '🔥 Krek izaziva zavisnost brže od skoro svake druge droge — ponekad posle prvog uzimanja.',
+  '💉 Heroin usporava disanje. Nalokson (Narcan) poništava predoziranje — pozovi 112.',
+  '☠️ Mešanje depresora (heroin + alkohol + benzo) je najčešći uzrok smrtnog predoziranja.',
+  '😰 Napad panike prolazi: izdah duži od udaha (4s udah, 8s izdah) smiruje nervni sistem.',
+  '📞 Razgovor pomaže. Anonimne linije za zavisnost postoje u svakom većem gradu.',
+  '🧠 Zavisnost je bolest mozga, ne slabost karaktera — leči se, ne kažnjava.',
+  '⏰ Što ranije potražiš pomoć, veće su šanse — prosečna zavisnost se krije 7 godina.',
+];
+const WAVE_JOKES=[
+  'Policija je dobila prekovremene.',
+  'Komšiluk je potpisao peticiju.',
+  'Inspektor je popio kafu. Loše po tebe.',
+  'Stanica je uvela smene od 12 sati.',
+  'Neko je zvao "Poznato je..." emisiju.',
+  'Baba sa trećeg sprata je nabavila dvogled.',
+  'Ministarstvo je poslalo pojačanje.',
+  'Helikopter nisu odobrili. Za sada.',
+];
+
+// ── HEROJI ───────────────────────────────────────
+const CHARS=[
+  {id:'ramiz',name:'Ramiz',emoji:'🎤',jc:'#3a1800',skin:'#c89060',
+   desc:'Balkan legenda — brži cooldown Q (Speed)',bonus:'q'},
+  {id:'sara',name:'Sara Grišević',emoji:'💃',jc:'#cc0090',skin:'#d4a075',
+   desc:'Turbo folk ikona — anksioznost raste sporije',bonus:'anx'},
+  {id:'kabir',name:'Kabir Biberovic',emoji:'🇧🇦',jc:'#0d2a52',skin:'#c09060',
+   desc:'Lokalni šampion — +20 HP i jači šamar',bonus:'hp'},
+  {id:'pajo',name:'Pajo',emoji:'🍺',jc:'#2e4a10',skin:'#c09060',
+   desc:'Domaći heroj — W (Trava) leči duplo',bonus:'w'},
+];
+
+// ── ABILITIES — droge kao moći, sa realnom cenom ─
+const ABIL={
+  q:{key:'Q',name:'SPEED',icon:'⚡',col:'#ff9900',cd:9000,anx:16,hard:false,
+     desc:'+70% brzina i napad 6s. Cena: anksioznost.'},
+  w:{key:'W',name:'TRAVA',icon:'🍃',col:'#44cc77',cd:12000,anx:-10,hard:false,
+     desc:'Dim: leči tebe, usporava njih. I tebe malo.'},
+  e:{key:'E',name:'KREK',icon:'🔥',col:'#ff5500',cd:8000,anx:22,hard:true,
+     desc:'Eksplozija oko tebe. 3× hard zaredom = OVERDOZA.'},
+  r:{key:'R',name:'HEROIN',icon:'💉',col:'#ff5555',cd:28000,anx:8,hard:true,
+     desc:'ULTI: 4.5s nedodirljiv... pa CRASH. Uvek dođe crash.'},
+};
+
+// ── STAZE (3 lane-a: spawn gore → KVART dole) ────
+const BASE={x:W/2,y:H-64};
+const PATHS=[
+  [[70,46],[70,H-150],[W/2-70,BASE.y-6]],
+  [[W/2,36],[W/2,BASE.y-40]],
+  [[W-70,46],[W-70,H-150],[W/2+70,BASE.y-6]],
+];
+
+// ── LEADERBOARD ──────────────────────────────────
+let LB=[];
+try{LB=JSON.parse(localStorage.getItem('ts_dota_lb')||'[]');}catch(e){LB=[];}
+function saveLB(score,name,res){
+  LB.push({score:Math.floor(score),char:name,res,d:new Date().toLocaleDateString('sr')});
+  LB.sort((a,b)=>b.score-a.score);LB=LB.slice(0,8);
+  try{localStorage.setItem('ts_dota_lb',JSON.stringify(LB));}catch(e){}
+}
+
+// ── STATE ────────────────────────────────────────
+let G;
+function newGame(chId){
+  const ch=CHARS.find(c=>c.id===chId)||CHARS[0];
+  G={ph:'play',t:0,fr:0,ch,wave:0,kills:0,gold:0,shk:0,msg:'',msgT:0,
+    hero:{x:W/2,y:H-140,hp:ch.bonus==='hp'?120:100,maxhp:ch.bonus==='hp'?120:100,
+      spd:2.5,dmg:ch.bonus==='hp'?15:12,atkT:0,anx:0,panics:0,stunT:0,
+      streak:0,revive:false,shoes:0},
+    cds:{q:0,w:0,e:0,r:0},
+    qT:0,cloud:null,nirvT:0,crashT:0,
+    enemies:[],bullets:[],parts:[],pops:[],drops:[],
+    base:{hp:100,maxhp:100},
+    spawnQ:[],spawnT:0,waveState:'break',breakT:2500,fact:-1,
+    deathCause:'',lastInfo:''};
+  nextWave();
+}
+G={ph:'select',t:0,fr:0,hover:-1};
+
+function addPop(x,y,txt,col,big){G.pops.push({x,y,txt,col,t:1200,t0:1200,big});}
+function burst(x,y,col,n=10,f=4){
+  for(let i=0;i<n;i++){const a=rn(0,PI2),s=rn(0.5,1)*f;
+    G.parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,r:rn(2,5),col,l:1,d:rn(0.03,0.06)});}
+}
+
+// ── TALASI ───────────────────────────────────────
+function nextWave(){
+  G.wave++;
+  const w=G.wave,q=[];
+  const n=3+w*2;
+  for(let i=0;i<n;i++)q.push('cop');
+  if(w>=2)for(let i=0;i<Math.floor(w/2);i++)q.push('palica');
+  if(w>=3&&w%3===0)q.push('baba');
+  if(w%5===0)q.push('boss');
+  if(w===12){q.push('boss');q.push('boss');}
+  // izmešaj
+  for(let i=q.length-1;i>0;i--){const j=ri(0,i+1);[q[i],q[j]]=[q[j],q[i]];}
+  G.spawnQ=q;G.spawnT=1200;G.waveState='combat';
+  G.msg=`TALAS ${w} — ${WAVE_JOKES[(w-1)%WAVE_JOKES.length]}`;G.msgT=3000;
+  snd(340,0.25,0.2,'square');setTimeout(()=>snd(440,0.3,0.18,'square'),220);
+}
+function mkEnemy(type){
+  const lane=ri(0,3),p0=PATHS[lane][0];
+  const base={cop:{hp:26,spd:1.05,dmg:5,r:13,gold:4},
+    palica:{hp:38,spd:1.5,dmg:7,r:14,gold:6},
+    baba:{hp:30,spd:0.55,dmg:0,r:13,gold:9},
+    boss:{hp:150+G.wave*22,spd:0.72,dmg:16,r:24,gold:35}}[type];
+  return{type,lane,wpi:1,x:p0[0]+rn(-16,16),y:p0[1]+rn(-8,8),
+    hp:base.hp+G.wave*3,maxhp:base.hp+G.wave*3,spd:base.spd,dmg:base.dmg,
+    r:base.r,gold:base.gold,atkT:0,babaT:4200,slowT:0,hitT:0};
+}
+
+// ── INPUT ────────────────────────────────────────
+const KS={};let moveTgt=null;
+addEventListener('keydown',e=>{
+  if(e.code==='KeyM'){MUTED=!MUTED;try{localStorage.setItem('ts_muted',MUTED?'1':'0');}catch(err){}syncMute();return;}
+  KS[e.code]=true;
+  if(G.ph==='select')return;
+  if(G.ph==='dead'||G.ph==='win'){if(e.code==='Space'){G.ph='select';G.hover=-1;}return;}
+  if(G.ph!=='play')return;
+  if(e.code==='KeyQ')cast('q');
+  else if(e.code==='KeyW'&&!KS.ArrowUp)cast('w');
+  else if(e.code==='KeyE')cast('e');
+  else if(e.code==='KeyR')cast('r');
+  else if(e.code==='Space'&&G.waveState==='break')G.breakT=0;
+  [' ','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)&&e.preventDefault();
+});
+addEventListener('keyup',e=>KS[e.code]=false);
+
+function canvasPos(e){
+  const r=CV.getBoundingClientRect();
+  return{x:(e.clientX-r.left)*(W/r.width),y:(e.clientY-r.top)*(H/r.height)};
+}
+// dugmad Q/W/E/R na ekranu (touch)
+const BTN=['q','w','e','r'].map((k,i)=>({k,x:W-260+i*64,y:H-46,r:26}));
+CV.addEventListener('pointerdown',e=>{
+  const m=canvasPos(e);
+  if(G.ph==='select'){
+    CHARS.forEach((c,i)=>{const bx=selX(i);if(m.x>=bx&&m.x<=bx+cW&&m.y>=cY&&m.y<=cY+cH)newGame(c.id);});
+    return;
+  }
+  if(G.ph==='dead'||G.ph==='win'){G.ph='select';G.hover=-1;return;}
+  if(G.ph!=='play')return;
+  if(G.waveState==='break'){
+    // shop hit-test
+    const hit=shopHit(m.x,m.y);
+    if(hit==='next'){G.breakT=0;return;}
+    if(hit!==null){buyItem(hit);return;}
+    return;
+  }
+  for(const b of BTN)if(dist(m.x,m.y,b.x,b.y)<b.r+8){cast(b.k);return;}
+  moveTgt={x:cl(m.x,20,W-20),y:cl(m.y,60,H-30)};
+});
+CV.addEventListener('pointermove',e=>{
+  if(G.ph!=='select')return;
+  const m=canvasPos(e);G.hover=-1;
+  CHARS.forEach((c,i)=>{const bx=selX(i);if(m.x>=bx&&m.x<=bx+cW&&m.y>=cY&&m.y<=cY+cH)G.hover=i;});
+});
+
+// ── ABILITIES ────────────────────────────────────
+function hardUse(){
+  const h=G.hero;h.streak++;
+  if(h.streak>=3){G.deathCause='overdoza';die();return true;}
+  if(h.streak===2){G.msg='⚠ JOŠ JEDNA HARD = OVERDOZA!';G.msgT=2500;}
+  return false;
+}
+function cast(k){
+  const h=G.hero;if(h.stunT>0||G.nirvT>0)return;
+  if(G.cds[k]>0)return;
+  const a=ABIL[k];
+  let cd=a.cd;if(k==='q'&&G.ch.bonus==='q')cd*=0.65;
+  G.cds[k]=cd;
+  let anx=a.anx;if(G.ch.bonus==='anx'&&anx>0)anx*=0.6;
+  h.anx=cl(h.anx+anx,0,100);
+  if(k==='q'){
+    G.qT=6000;burst(h.x,h.y,'#ff9900',14,5);snd(650,0.18,0.3,'sawtooth');
+    addPop(h.x,h.y-34,'⚡ SPEED','#ff9900');h.streak=0;
+  }
+  if(k==='w'){
+    G.cloud={x:h.x,y:h.y,t:5000};snd(180,0.9,0.2);
+    addPop(h.x,h.y-34,'🍃 TRAVA','#44cc77');h.streak=0;
+  }
+  if(k==='e'){
+    if(hardUse())return;
+    snd(1400,0.15,0.28,'square');snd(90,0.4,0.35);G.shk=14;vib([30,20,50]);
+    burst(h.x,h.y,'#ff5500',26,7);burst(h.x,h.y,'#ffcc00',14,5);
+    for(const en of G.enemies){
+      if(dist(h.x,h.y,en.x,en.y)<125){dmgEnemy(en,45,'#ff5500');}
+    }
+    addPop(h.x,h.y-34,'🔥 KREK!','#ff5500');
+  }
+  if(k==='r'){
+    if(hardUse())return;
+    G.nirvT=4500;snd(80,1.6,0.3);snd(52,2.4,0.2);vib([60,60,120]);
+    addPop(h.x,h.y-40,'💉 NIRVANA...','#ff5555',true);
+  }
+}
+function dmgEnemy(en,d,col){
+  en.hp-=d;en.hitT=140;
+  if(en.hp<=0&&!en.dead){
+    en.dead=true;G.kills++;
+    const g=en.gold;G.gold+=g;
+    addPop(en.x,en.y-20,'+'+g+'🪙','#ffd447');
+    burst(en.x,en.y,col||'#ff5555',12,5);
+    snd(en.type==='boss'?110:220,0.2,0.2,'square');
+    if(Math.random()<0.13)G.drops.push({x:en.x,y:en.y,t:9000});
+    if(en.type==='boss'){G.shk=12;addPop(en.x,en.y-44,'INSPEKTOR PAO!','#ffd447',true);}
+  }
+}
+
+// ── SHOP ─────────────────────────────────────────
+const SHOP=[
+  {n:'BUREK',icon:'🥟',cost:30,desc:'+40 HP. Najjača domaća medicina.',
+   ok:()=>G.hero.hp<G.hero.maxhp,buy:()=>{G.hero.hp=cl(G.hero.hp+40,0,G.hero.maxhp);}},
+  {n:'KEFIR',icon:'🥛',cost:20,desc:'-50 anksioznost. Baka je znala.',
+   ok:()=>G.hero.anx>0,buy:()=>{G.hero.anx=cl(G.hero.anx-50,0,100);}},
+  {n:'PATIKE',icon:'👟',cost:60,desc:'+10% brzina (trajno, max 3).',
+   ok:()=>G.hero.shoes<3,buy:()=>{G.hero.shoes++;G.hero.spd*=1.1;}},
+  {n:'ADVOKAT',icon:'⚖️',cost:120,desc:'Jednom te vraća iz mrtvih. Skupo? Realno.',
+   ok:()=>!G.hero.revive,buy:()=>{G.hero.revive=true;}},
+];
+const SHOP_Y=H*0.42;
+function shopHit(mx,my){
+  for(let i=0;i<SHOP.length;i++){
+    const bx=W/2-330+i*170;
+    if(mx>=bx&&mx<=bx+150&&my>=SHOP_Y&&my<=SHOP_Y+118)return i;
+  }
+  if(mx>=W/2-110&&mx<=W/2+110&&my>=H-84&&my<=H-40)return'next';
+  return null;
+}
+function buyItem(i){
+  const it=SHOP[i];
+  if(G.gold<it.cost||!it.ok()){snd(140,0.15,0.2,'square');return;}
+  G.gold-=it.cost;it.buy();
+  snd(880,0.1,0.15);snd(1320,0.12,0.1);
+  addPop(W/2,SHOP_Y-20,it.icon+' '+it.n+'!','#ffd447',true);
+}
+
+// ── SMRT / POBEDA ────────────────────────────────
+function die(){
+  const h=G.hero;
+  if(h.revive&&G.deathCause!=='overdoza'){
+    h.revive=false;h.hp=Math.floor(h.maxhp*0.6);h.anx=30;h.streak=0;
+    addPop(h.x,h.y-40,'⚖️ ADVOKAT TE IZVUKAO!','#ffd447',true);
+    snd(660,0.3,0.2);return;
+  }
+  G.ph='dead';
+  const infos={
+    overdoza:'Tri "hard" moći zaredom = predoziranje. U životu nema cooldown-a. Pozovi 112 · Nalokson spašava.',
+    anxiety:'Treći napad panike. Anksioznost lečena drogom se uvek vraća jača — razgovor i terapija je leče stvarno.',
+    kvart:'Kvart je pao. Zavisnost nikad ne košta samo tebe — plaća ceo kvart: porodica, komšije, prijatelji.',
+    hero:'Policija te srušila. Kazna ne leči zavisnost — lečenje leči zavisnost.',
+  };
+  G.lastInfo=infos[G.deathCause]||infos.hero;
+  saveLB(G.wave*100+G.kills*5,G.ch.name,'†T'+G.wave);
+  snd(220,0.8,0.3,'sawtooth');vib([100,60,200]);
+}
+function winGame(){
+  G.ph='win';
+  saveLB(G.wave*100+G.kills*5+G.gold,G.ch.name,'WIN');
+  snd(660,0.3,0.2);setTimeout(()=>snd(880,0.4,0.2),250);setTimeout(()=>snd(1100,0.6,0.2),550);
+}
+
+// ── UPDATE ───────────────────────────────────────
+function update(dt){
+  const h=G.hero;
+  if(G.shk>0)G.shk=Math.max(0,G.shk-dt*0.03);
+  if(G.msgT>0)G.msgT-=dt;
+  for(const k in G.cds)if(G.cds[k]>0)G.cds[k]-=dt;
+  for(const pp of G.pops){pp.y-=dt*0.04;pp.t-=dt;}
+  G.pops=G.pops.filter(p=>p.t>0);
+  for(const pt of G.parts){pt.x+=pt.vx;pt.y+=pt.vy;pt.vx*=0.96;pt.vy*=0.96;pt.l-=pt.d;}
+  G.parts=G.parts.filter(p=>p.l>0);
+  G.drops=G.drops.filter(d=>{d.t-=dt;return d.t>0;});
+
+  // pauza između talasa
+  if(G.waveState==='break'){
+    G.breakT-=dt;
+    if(G.breakT<=0)nextWave();
+    return;
+  }
+
+  // spawn
+  if(G.spawnQ.length){
+    G.spawnT-=dt;
+    if(G.spawnT<=0){G.enemies.push(mkEnemy(G.spawnQ.shift()));G.spawnT=w2SpawnGap();}
+  }
+  function w2SpawnGap(){return Math.max(420,1150-G.wave*55);}
+
+  // status efekti heroja
+  if(G.qT>0)G.qT-=dt;
+  if(G.nirvT>0){G.nirvT-=dt;if(G.nirvT<=0){G.crashT=3500;h.anx=cl(h.anx+30,0,100);G.msg='💥 CRASH. Uvek dođe crash.';G.msgT=2600;snd(120,1.2,0.25,'sawtooth');}}
+  if(G.crashT>0)G.crashT-=dt;
+  if(h.stunT>0)h.stunT-=dt;
+  if(G.cloud){G.cloud.t-=dt;if(G.cloud.t<=0)G.cloud=null;}
+
+  // anksioznost — prirodni pad; panika
+  h.anx=cl(h.anx-3.2*dt/1000,0,100);
+  if(h.anx>=100){
+    h.panics++;
+    if(h.panics>=3){G.deathCause='anxiety';die();return;}
+    h.anx=55;h.stunT=2200;G.shk=18;vib([0,90,70,90]);
+    G.msg=`⚠ NAPADAJ PANIKE ${h.panics}/3 — ne možeš da se mrdneš!`;G.msgT=2600;
+    snd(160,1.0,0.35,'sawtooth');
+  }
+
+  // kretanje heroja
+  const inCloud=G.cloud&&dist(h.x,h.y,G.cloud.x,G.cloud.y)<130;
+  let spd=h.spd*(G.qT>0?1.7:1)*(G.crashT>0?0.45:1)*(inCloud?0.85:1);
+  if(h.stunT>0)spd=0;
+  let mvx=0,mvy=0;
+  if(KS.KeyA||KS.ArrowLeft)mvx-=1;
+  if(KS.KeyD||KS.ArrowRight)mvx+=1;
+  if(KS.KeyW||KS.ArrowUp)mvy-=1;
+  if(KS.KeyS||KS.ArrowDown)mvy+=1;
+  if(mvx||mvy){
+    const l=Math.hypot(mvx,mvy);
+    h.x+=mvx/l*spd*dt/16.7;h.y+=mvy/l*spd*dt/16.7;moveTgt=null;
+  }else if(moveTgt){
+    const dx=moveTgt.x-h.x,dy=moveTgt.y-h.y,d=Math.hypot(dx,dy);
+    if(d<6)moveTgt=null;
+    else{h.x+=dx/d*spd*dt/16.7;h.y+=dy/d*spd*dt/16.7;}
+  }
+  h.x=cl(h.x,18,W-18);h.y=cl(h.y,54,H-26);
+
+  // regen u oblaku trave
+  if(inCloud){const mult=G.ch.bonus==='w'?2:1;h.hp=cl(h.hp+3*mult*dt/1000,0,h.maxhp);}
+
+  // auto-attack — flaša na najbližeg
+  h.atkT-=dt;
+  const rng=200;
+  if(h.atkT<=0&&h.stunT<=0&&G.nirvT<=0){
+    let best=null,bd=rng;
+    for(const en of G.enemies){const d=dist(h.x,h.y,en.x,en.y);if(d<bd){bd=d;best=en;}}
+    if(best){
+      const d=bd,vx=(best.x-h.x)/d*7,vy=(best.y-h.y)/d*7;
+      G.bullets.push({x:h.x,y:h.y-14,vx,vy,dmg:h.dmg});
+      h.atkT=G.qT>0?330:620;snd(300,0.05,0.1);
+    }
+  }
+
+  // bullets
+  for(const b of G.bullets){
+    b.x+=b.vx*dt/16.7;b.y+=b.vy*dt/16.7;
+    for(const en of G.enemies){
+      if(!en.dead&&dist(b.x,b.y,en.x,en.y)<en.r+4){dmgEnemy(en,b.dmg);b.hit=true;break;}
+    }
+  }
+  G.bullets=G.bullets.filter(b=>!b.hit&&b.x>0&&b.x<W&&b.y>0&&b.y<H);
+
+  // enemies
+  const cloudC=G.cloud;
+  for(const en of G.enemies){
+    if(en.dead)continue;
+    if(en.hitT>0)en.hitT-=dt;
+    let esp=en.spd*(G.nirvT>0?0.35:1);
+    if(cloudC&&dist(en.x,en.y,cloudC.x,cloudC.y)<130)esp*=0.5;
+    // baba — prijavljuje: zove pojačanje
+    if(en.type==='baba'){
+      en.babaT-=dt;
+      if(en.babaT<=0){en.babaT=5200;G.enemies.push({...mkEnemy('cop'),x:en.x+rn(-14,14),y:en.y+rn(-10,10),lane:en.lane,wpi:en.wpi});
+        addPop(en.x,en.y-26,'📢 PRIJAVILA TE!','#ff8888');snd(880,0.12,0.2,'square');}
+    }
+    // palica juri heroja ako je blizu
+    const dh=dist(en.x,en.y,h.x,h.y);
+    if(en.type==='palica'&&dh<170){
+      if(dh>en.r+16){en.x+=(h.x-en.x)/dh*esp*1.15*dt/16.7;en.y+=(h.y-en.y)/dh*esp*1.15*dt/16.7;}
+      else{en.atkT-=dt;if(en.atkT<=0){en.atkT=900;heroHit(en.dmg);}}
+      continue;
+    }
+    // boss udara heroja usput
+    if(en.type==='boss'&&dh<en.r+18){en.atkT-=dt;if(en.atkT<=0){en.atkT=1100;heroHit(en.dmg);}}
+    // put ka kvartu
+    const path=PATHS[en.lane],wp=path[en.wpi];
+    if(wp){
+      const dx=wp[0]-en.x,dy=wp[1]-en.y,d=Math.hypot(dx,dy);
+      if(d<10)en.wpi++;
+      else{en.x+=dx/d*esp*dt/16.7;en.y+=dy/d*esp*dt/16.7;}
+    }else{
+      // stigao do kvarta — ruši
+      en.atkT-=dt;
+      if(en.atkT<=0&&en.type!=='baba'){
+        en.atkT=1000;G.base.hp-=en.dmg;G.shk=Math.max(G.shk,5);
+        burst(BASE.x+rn(-30,30),BASE.y-10,'#ff6644',5,3);snd(95,0.1,0.16,'square');
+        if(G.base.hp<=0){G.deathCause='kvart';die();return;}
+      }
+    }
+  }
+  G.enemies=G.enemies.filter(e=>!e.dead);
+
+  function heroHit(d){
+    if(G.nirvT>0)return;
+    h.hp-=d;G.shk=Math.max(G.shk,7);vib(25);
+    burst(h.x,h.y-10,'#ff4444',6,3);snd(180,0.08,0.18,'square');
+    if(h.hp<=0){G.deathCause='hero';die();}
+  }
+
+  // xanax dropovi
+  for(const d of G.drops){
+    if(dist(h.x,h.y,d.x,d.y)<20){
+      d.t=0;h.anx=cl(h.anx-40,0,100);h.streak=0;
+      addPop(d.x,d.y-20,'💊 -40 ANX','#00ccff');snd(1100,0.09,0.12);
+    }
+  }
+
+  // kraj talasa
+  if(!G.spawnQ.length&&!G.enemies.length&&G.waveState==='combat'){
+    if(G.wave>=12){winGame();return;}
+    G.waveState='break';G.breakT=25000;
+    G.fact=(G.fact+1)%FACTS.length;
+    G.gold+=10+G.wave*2;
+    snd(520,0.2,0.18);setTimeout(()=>snd(660,0.25,0.15),180);
+  }
+}
+
+// ── DRAW ─────────────────────────────────────────
+let BGC=null;
+function getBG(){
+  if(BGC)return BGC;
+  BGC=document.createElement('canvas');BGC.width=W;BGC.height=H;
+  const b=BGC.getContext('2d');
+  // asfalt
+  const g=b.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0c0c12');g.addColorStop(1,'#14100c');
+  b.fillStyle=g;b.fillRect(0,0,W,H);
+  for(let i=0;i<400;i++){b.fillStyle=`rgba(255,255,255,${rn(0.01,0.04)})`;b.fillRect(rn(0,W),rn(0,H),rn(1,3),rn(1,3));}
+  // staze
+  b.strokeStyle='rgba(200,180,120,0.10)';b.lineWidth=34;b.lineCap='round';b.lineJoin='round';
+  for(const p of PATHS){b.beginPath();b.moveTo(p[0][0],p[0][1]);for(const w of p)b.lineTo(w[0],w[1]);b.lineTo(BASE.x,BASE.y);b.stroke();}
+  b.strokeStyle='rgba(240,220,0,0.14)';b.lineWidth=2;b.setLineDash([10,12]);
+  for(const p of PATHS){b.beginPath();b.moveTo(p[0][0],p[0][1]);for(const w of p)b.lineTo(w[0],w[1]);b.lineTo(BASE.x,BASE.y);b.stroke();}
+  b.setLineDash([]);
+  // spawn — stanica policije
+  b.fillStyle='#0a1428';[[70,30],[W/2,22],[W-70,30]].forEach(([x,y])=>{
+    b.fillRect(x-34,y-18,68,32);
+    b.fillStyle='#12244a';b.fillRect(x-30,y-14,60,10);b.fillStyle='#0a1428';
+  });
+  b.fillStyle='#4466aa';b.font='bold 9px Courier New';b.textAlign='center';
+  [[70,30],[W/2,22],[W-70,30]].forEach(([x,y])=>b.fillText('POLICIJA',x,y+2));
+  // grafiti
+  b.font='bold 15px Courier New';b.textAlign='left';
+  b.fillStyle='rgba(120,220,120,0.08)';b.fillText('IZABERI ŽIVOT',30,H*0.45);
+  b.fillStyle='rgba(220,120,220,0.07)';b.fillText('KVART NE SPAVA',W-190,H*0.4);
+  return BGC;
+}
+function drawBase(){
+  const bp=G.base?G.base.hp/G.base.maxhp:1;
+  // zgrada kvarta
+  cx.fillStyle='#241a10';cx.fillRect(BASE.x-70,BASE.y-38,140,52);
+  cx.fillStyle='#302010';cx.fillRect(BASE.x-70,BASE.y-46,140,10);
+  // prozori — gase se kako kvart pada
+  for(let i=0;i<6;i++){
+    const on=i/6<bp;
+    cx.fillStyle=on?'rgba(255,200,80,0.75)':'rgba(30,25,20,0.9)';
+    cx.fillRect(BASE.x-58+i*20,BASE.y-30,12,14);
+  }
+  cx.fillStyle='#f1c40f';cx.font='bold 11px Courier New';cx.textAlign='center';
+  cx.fillText('❤ KVART',BASE.x,BASE.y+26);
+  // HP bar
+  cx.fillStyle='rgba(0,0,0,0.6)';cx.fillRect(BASE.x-62,BASE.y-56,124,8);
+  cx.fillStyle=bp>0.5?'#27ae60':bp>0.25?'#f39c12':'#e74c3c';
+  cx.fillRect(BASE.x-61,BASE.y-55,122*bp,6);
+  cx.textAlign='left';
+  if(bp<0.4&&G.fr%30<15){cx.fillStyle='rgba(255,60,40,0.5)';cx.font='9px Courier New';cx.textAlign='center';cx.fillText('KVART GORI!',BASE.x,BASE.y-62);cx.textAlign='left';}
+}
+function drawEnemy(en){
+  const fl=en.hitT>0;
+  cx.fillStyle='rgba(0,0,0,0.35)';cx.beginPath();cx.ellipse(en.x,en.y+en.r*0.8,en.r*0.9,en.r*0.3,0,0,PI2);cx.fill();
+  if(en.type==='baba'){
+    cx.fillStyle=fl?'#fff':'#7a5a8a';cx.beginPath();cx.arc(en.x,en.y,en.r,0,PI2);cx.fill();
+    cx.fillStyle='#cda07a';cx.beginPath();cx.arc(en.x,en.y-en.r*0.55,en.r*0.55,0,PI2);cx.fill();
+    cx.fillStyle='#d0d0d0';cx.beginPath();cx.arc(en.x,en.y-en.r*0.85,en.r*0.42,Math.PI,PI2);cx.fill();
+    cx.font=`${en.r*0.9}px serif`;cx.textAlign='center';cx.fillText('📢',en.x+en.r*0.9,en.y-en.r*0.4);cx.textAlign='left';
+  }else if(en.type==='boss'){
+    cx.fillStyle=fl?'#fff':'#20304a';cx.beginPath();cx.arc(en.x,en.y,en.r,0,PI2);cx.fill();
+    cx.strokeStyle='#ffd447';cx.lineWidth=2.5;cx.beginPath();cx.arc(en.x,en.y,en.r,0,PI2);cx.stroke();
+    cx.fillStyle='#c8a060';cx.beginPath();cx.arc(en.x,en.y-en.r*0.5,en.r*0.44,0,PI2);cx.fill();
+    cx.fillStyle='#111a2e';cx.fillRect(en.x-en.r*0.5,en.y-en.r*0.95,en.r,en.r*0.3);
+    cx.fillStyle='#ffd447';cx.font='bold 9px Courier New';cx.textAlign='center';cx.fillText('INSPEKTOR',en.x,en.y+en.r+12);cx.textAlign='left';
+  }else{
+    const col=en.type==='palica'?'#1e3c6e':'#16305c';
+    cx.fillStyle=fl?'#fff':col;cx.beginPath();cx.arc(en.x,en.y,en.r,0,PI2);cx.fill();
+    cx.fillStyle='#c8a060';cx.beginPath();cx.arc(en.x,en.y-en.r*0.5,en.r*0.42,0,PI2);cx.fill();
+    cx.fillStyle='#0e1e3e';cx.beginPath();cx.arc(en.x,en.y-en.r*0.72,en.r*0.42,Math.PI,PI2);cx.fill();
+    if(en.type==='palica'){cx.strokeStyle='#0a0a0a';cx.lineWidth=3;cx.beginPath();cx.moveTo(en.x+en.r*0.7,en.y);cx.lineTo(en.x+en.r*1.5,en.y-en.r*0.8);cx.stroke();}
+  }
+  // hp
+  if(en.hp<en.maxhp){
+    cx.fillStyle='rgba(0,0,0,0.6)';cx.fillRect(en.x-14,en.y-en.r-10,28,4);
+    cx.fillStyle='#e74c3c';cx.fillRect(en.x-13,en.y-en.r-9,26*(en.hp/en.maxhp),2);
+  }
+}
+function drawHero(){
+  const h=G.hero,ch=G.ch;
+  const bob=Math.sin(G.t/140)*1.5;
+  if(G.nirvT>0){
+    cx.globalAlpha=0.5+Math.sin(G.t/120)*0.2;
+    cx.strokeStyle='#ff5555';cx.lineWidth=2;
+    cx.beginPath();cx.arc(h.x,h.y-8,26+Math.sin(G.t/200)*4,0,PI2);cx.stroke();
+  }
+  cx.fillStyle='rgba(0,0,0,0.4)';cx.beginPath();cx.ellipse(h.x,h.y+12,13,4.5,0,0,PI2);cx.fill();
+  // telo
+  cx.fillStyle=ch.jc;cx.beginPath();
+  cx.moveTo(h.x-10,h.y+10);cx.lineTo(h.x-8,h.y-8+bob);cx.lineTo(h.x+8,h.y-8+bob);cx.lineTo(h.x+10,h.y+10);cx.closePath();cx.fill();
+  // glava
+  cx.fillStyle=ch.skin;cx.beginPath();cx.arc(h.x,h.y-15+bob,8,0,PI2);cx.fill();
+  cx.fillStyle='#0a0a0a';cx.beginPath();cx.arc(h.x,h.y-18+bob,7.5,Math.PI,PI2);cx.fill();
+  cx.globalAlpha=1;
+  if(h.stunT>0){cx.font='13px serif';cx.textAlign='center';cx.fillText('😵',h.x,h.y-30);cx.textAlign='left';}
+  if(G.crashT>0){cx.fillStyle='rgba(150,150,255,0.6)';cx.font='9px Courier New';cx.textAlign='center';cx.fillText('crash...',h.x,h.y-32);cx.textAlign='left';}
+  // streak
+  if(h.streak>0){cx.font='11px serif';cx.textAlign='center';cx.fillText('💉'.repeat(h.streak),h.x,h.y+28);cx.textAlign='left';}
+}
+function drawHUD(){
+  const h=G.hero;
+  // heroj HP + ANX
+  cx.fillStyle='rgba(0,0,0,0.6)';cx.fillRect(56,12,170,38);
+  cx.fillStyle='#fff';cx.font='bold 10px Courier New';cx.fillText(`${G.ch.emoji} ${G.ch.name}`,62,24);
+  cx.fillStyle='#300';cx.fillRect(62,29,158,7);
+  cx.fillStyle='#e74c3c';cx.fillRect(62,29,158*cl(h.hp/h.maxhp,0,1),7);
+  cx.fillStyle='#013';cx.fillRect(62,39,158,6);
+  const ac=h.anx<50?'#27ae60':h.anx<80?'#f39c12':'#e74c3c';
+  cx.fillStyle=ac;cx.fillRect(62,39,158*(h.anx/100),6);
+  cx.fillStyle='#557';cx.font='7px Courier New';cx.fillText('ANKSIOZNOST',63,38);
+  // talas + gold
+  cx.textAlign='center';
+  cx.fillStyle='#fff';cx.font='bold 15px Courier New';cx.fillText(`TALAS ${G.wave}/12`,W/2,26);
+  cx.fillStyle='#666';cx.font='9px Courier New';cx.fillText(`neprijatelja: ${G.enemies.length+G.spawnQ.length}`,W/2,40);
+  cx.textAlign='right';
+  cx.fillStyle='#ffd447';cx.font='bold 14px Courier New';cx.fillText(`🪙 ${G.gold}`,W-16,26);
+  cx.fillStyle='#888';cx.font='10px Courier New';cx.fillText(`☠ ${G.kills}`,W-16,42);
+  cx.textAlign='left';
+  // QWER dugmad
+  for(const b of BTN){
+    const a=ABIL[b.k],cd=G.cds[b.k],rdy=cd<=0;
+    cx.fillStyle=rdy?'rgba(10,10,14,0.85)':'rgba(10,10,14,0.6)';
+    cx.beginPath();cx.arc(b.x,b.y,b.r,0,PI2);cx.fill();
+    cx.strokeStyle=rdy?a.col:'#333';cx.lineWidth=rdy?2.5:1.5;
+    cx.beginPath();cx.arc(b.x,b.y,b.r,0,PI2);cx.stroke();
+    cx.globalAlpha=rdy?1:0.45;
+    cx.font='17px serif';cx.textAlign='center';cx.fillText(a.icon,b.x,b.y+3);
+    cx.globalAlpha=1;
+    cx.fillStyle=rdy?a.col:'#555';cx.font='bold 9px Courier New';cx.fillText(a.key,b.x,b.y+b.r+11);
+    if(!rdy){
+      let full=a.cd;if(b.k==='q'&&G.ch.bonus==='q')full*=0.65;
+      cx.strokeStyle=a.col;cx.lineWidth=3;
+      cx.beginPath();cx.arc(b.x,b.y,b.r-1,-Math.PI/2,-Math.PI/2+PI2*(1-cd/full));cx.stroke();
+      cx.fillStyle='#fff';cx.font='bold 10px Courier New';cx.fillText(Math.ceil(cd/1000),b.x,b.y-b.r-4);
+    }
+    cx.textAlign='left';
+  }
+  // hard streak upozorenje
+  if(h.streak===2&&G.fr%20<12){
+    cx.textAlign='center';cx.fillStyle='#ff4444';cx.font='bold 13px Courier New';
+    cx.fillText('⚠ JOŠ JEDNA HARD MOĆ = OVERDOZA',W/2,58);cx.textAlign='left';
+  }
+  // poruka
+  if(G.msgT>0){
+    cx.globalAlpha=Math.min(1,G.msgT/400);
+    cx.textAlign='center';cx.fillStyle='#fff';cx.font='bold 16px Courier New';
+    cx.shadowColor='#000';cx.shadowBlur=10;cx.fillText(G.msg,W/2,86);cx.shadowBlur=0;
+    cx.globalAlpha=1;cx.textAlign='left';
+  }
+  // popups
+  for(const pp of G.pops){
+    cx.globalAlpha=Math.max(0,pp.t/pp.t0);
+    cx.font=`bold ${pp.big?16:12}px Courier New`;cx.textAlign='center';
+    cx.fillStyle=pp.col;cx.shadowColor='#000';cx.shadowBlur=4;cx.fillText(pp.txt,pp.x,pp.y);cx.shadowBlur=0;
+  }
+  cx.globalAlpha=1;cx.textAlign='left';
+}
+function drawBreak(){
+  cx.fillStyle='rgba(0,0,0,0.82)';cx.fillRect(0,0,W,H);
+  cx.textAlign='center';
+  cx.fillStyle='#27ae60';cx.font='bold 22px Courier New';
+  cx.fillText(`✔ TALAS ${G.wave} OČIŠĆEN`,W/2,H*0.13);
+  // ZNAŠ LI — edukacija
+  const fact=FACTS[Math.max(0,G.fact)];
+  cx.fillStyle='rgba(255,255,255,0.05)';cx.fillRect(W/2-360,H*0.18,720,74);
+  cx.strokeStyle='rgba(255,255,255,0.14)';cx.strokeRect(W/2-360,H*0.18,720,74);
+  cx.fillStyle='#f1c40f';cx.font='bold 11px Courier New';cx.fillText('── ZNAŠ LI? ──',W/2,H*0.18+20);
+  cx.fillStyle='#e8e8e4';cx.font='13px Courier New';
+  // wrap
+  const words=fact.split(' ');let line='',ly=H*0.18+42;
+  words.forEach(w=>{const t=line+w+' ';
+    if(cx.measureText(t).width>660&&line){cx.fillText(line.trim(),W/2,ly);line=w+' ';ly+=18;}else line=t;});
+  if(line)cx.fillText(line.trim(),W/2,ly);
+  // SHOP
+  cx.fillStyle='#888';cx.font='bold 12px Courier New';cx.fillText(`🛒 PIJACA — imaš 🪙 ${G.gold}`,W/2,SHOP_Y-14);
+  SHOP.forEach((it,i)=>{
+    const bx=W/2-330+i*170,can=G.gold>=it.cost&&it.ok();
+    cx.fillStyle=can?'#141414':'#0c0c0c';cx.fillRect(bx,SHOP_Y,150,118);
+    cx.strokeStyle=can?'#f1c40f':'#222';cx.lineWidth=can?1.5:1;cx.strokeRect(bx,SHOP_Y,150,118);
+    cx.globalAlpha=can?1:0.4;
+    cx.font='26px serif';cx.fillText(it.icon,bx+75,SHOP_Y+34);
+    cx.fillStyle='#fff';cx.font='bold 11px Courier New';cx.fillText(it.n,bx+75,SHOP_Y+52);
+    cx.fillStyle='#ffd447';cx.font='bold 10px Courier New';cx.fillText('🪙 '+it.cost,bx+75,SHOP_Y+66);
+    cx.fillStyle='#777';cx.font='8px Courier New';
+    const ws=it.desc.split(' ');let l2='',y2=SHOP_Y+80;
+    ws.forEach(w=>{const t=l2+w+' ';
+      if(cx.measureText(t).width>134&&l2){cx.fillText(l2.trim(),bx+75,y2);l2=w+' ';y2+=11;}else l2=t;});
+    if(l2)cx.fillText(l2.trim(),bx+75,y2);
+    cx.globalAlpha=1;
+  });
+  // next
+  const pulse=0.75+Math.sin(G.t/300)*0.25;
+  cx.fillStyle=`rgba(192,57,43,${pulse})`;cx.fillRect(W/2-110,H-84,220,44);
+  cx.fillStyle='#fff';cx.font='bold 14px Courier New';
+  cx.fillText(`▶ TALAS ${G.wave+1}  [SPACE · ${Math.ceil(G.breakT/1000)}s]`,W/2,H-57);
+  cx.textAlign='left';
+}
+const cW=190,cH=250,cGap=14,cY=H/2-105;
+function selX(i){return(W-CHARS.length*(cW+cGap)+cGap)/2+i*(cW+cGap);}
+function drawSelect(){
+  cx.fillStyle='#050508';cx.fillRect(0,0,W,H);
+  cx.textAlign='center';
+  cx.fillStyle='#c0392b';cx.font='bold 30px Courier New';
+  cx.shadowColor='#c0392b';cx.shadowBlur=20;cx.fillText('TRAINSPOTTING ARENA',W/2,52);cx.shadowBlur=0;
+  cx.fillStyle='#555';cx.font='11px Courier New';
+  cx.fillText('DOTA MOD — brani KVART od 12 talasa. Droge su ti moći. Svaka ima cenu.',W/2,74);
+  cx.fillStyle='#333';cx.font='9px Courier New';
+  cx.fillText('WASD/strelice ili tap = kretanje · Q W E R = moći · auto-napad je automatski',W/2,90);
+  CHARS.forEach((ch,i)=>{
+    const bx=selX(i),hov=G.hover===i;
+    cx.fillStyle=hov?'#161616':'#0d0d0d';cx.fillRect(bx,cY,cW,cH);
+    cx.strokeStyle=hov?ch.jc:'#1e1e1e';cx.lineWidth=hov?2.5:1;cx.strokeRect(bx,cY,cW,cH);
+    cx.font='34px serif';cx.fillText(ch.emoji,bx+cW/2,cY+52);
+    // mini figura
+    cx.fillStyle=ch.jc;cx.fillRect(bx+cW/2-13,cY+72,26,34);
+    cx.fillStyle=ch.skin;cx.beginPath();cx.arc(bx+cW/2,cY+64,9,0,PI2);cx.fill();
+    cx.fillStyle='#fff';cx.font='bold 12px Courier New';cx.fillText(ch.name,bx+cW/2,cY+130);
+    cx.fillStyle='#666';cx.font='9px Courier New';
+    const ws=ch.desc.split(' ');let l='',ly=cY+148;
+    ws.forEach(w=>{const t=l+w+' ';
+      if(cx.measureText(t).width>cW-24&&l){cx.fillText(l.trim(),bx+cW/2,ly);l=w+' ';ly+=13;}else l=t;});
+    if(l)cx.fillText(l.trim(),bx+cW/2,ly);
+    if(hov){cx.fillStyle='#f1c40f';cx.font='bold 10px Courier New';cx.fillText('▶ IZABERI',bx+cW/2,cY+cH-14);}
+  });
+  if(LB.length){
+    cx.fillStyle='#333';cx.font='9px Courier New';
+    cx.fillText(`🏆 NAJBOLJI: ${LB[0].char} — ${LB[0].score} (${LB[0].res})`,W/2,H-22);
+  }
+  cx.textAlign='left';
+}
+function drawEnd(win){
+  cx.fillStyle='rgba(0,0,0,0.92)';cx.fillRect(0,0,W,H);
+  cx.textAlign='center';
+  if(win){
+    cx.fillStyle='#27ae60';cx.font='bold 40px Courier New';
+    cx.shadowColor='#27ae60';cx.shadowBlur=25;cx.fillText('ODBRANIO SI KVART',W/2,H*0.2);cx.shadowBlur=0;
+    cx.fillStyle='#e8e8e4';cx.font='14px Courier New';
+    cx.fillText('12 talasa. U igri je to kraj.',W/2,H*0.32);
+    cx.fillStyle='#f1c40f';
+    cx.fillText('U životu talasi ne prestaju — zato se pomoć traži na vreme.',W/2,H*0.39);
+    cx.fillStyle='#888';cx.font='12px Courier New';
+    cx.fillText('Prava pobeda nije preživeti talas. Prava pobeda je izaći iz arene.',W/2,H*0.47);
+  }else{
+    const titles={overdoza:'OVERDOZA',anxiety:'NAPADAJ PANIKE',kvart:'KVART JE PAO',hero:'PRIVEDEN SI'};
+    cx.fillStyle='#ff2222';cx.font='bold 42px Courier New';
+    cx.shadowColor='#ff0000';cx.shadowBlur=30;cx.fillText(titles[G.deathCause]||'KRAJ',W/2,H*0.2);cx.shadowBlur=0;
+    cx.fillStyle='rgba(0,0,0,0.5)';cx.fillRect(W/2-370,H*0.27,740,50);
+    cx.fillStyle='#ffcc99';cx.font='12px Courier New';
+    const ws=G.lastInfo.split(' ');let l='',ly=H*0.27+22;
+    ws.forEach(w=>{const t=l+w+' ';
+      if(cx.measureText(t).width>700&&l){cx.fillText(l.trim(),W/2,ly);l=w+' ';ly+=17;}else l=t;});
+    if(l)cx.fillText(l.trim(),W/2,ly);
+  }
+  cx.fillStyle='#f1c40f';cx.font='bold 15px Courier New';
+  cx.fillText(`${G.ch.emoji} ${G.ch.name} — talas ${G.wave} · ☠ ${G.kills} · 🪙 ${G.gold}`,W/2,H*0.56);
+  if(LB.length){
+    cx.fillStyle='#333';cx.font='bold 10px Courier New';cx.fillText('── TOP ──',W/2,H*0.63);
+    LB.slice(0,5).forEach((e,i)=>{
+      cx.fillStyle=i===0?'#ffd447':'#666';cx.font='11px Courier New';
+      cx.fillText(`${i+1}. ${e.char} — ${e.score} (${e.res}) ${e.d}`,W/2,H*0.67+i*18);
+    });
+  }
+  if(Math.floor(G.t/600)%2===0){
+    cx.fillStyle='#555';cx.font='12px Courier New';
+    cx.fillText('[ SPACE / TAP — nova partija ]',W/2,H*0.94);
+  }
+  cx.textAlign='left';
+}
+function render(){
+  cx.clearRect(0,0,W,H);
+  if(G.ph==='select'){drawSelect();return;}
+  cx.save();
+  if(G.shk>0)cx.translate(rn(-G.shk,G.shk),rn(-G.shk,G.shk));
+  cx.drawImage(getBG(),0,0);
+  drawBase();
+  // trava oblak
+  if(G.cloud){
+    const a=Math.min(1,G.cloud.t/800);
+    const cg=cx.createRadialGradient(G.cloud.x,G.cloud.y,10,G.cloud.x,G.cloud.y,130);
+    cg.addColorStop(0,`rgba(60,170,90,${0.3*a})`);cg.addColorStop(1,'rgba(60,170,90,0)');
+    cx.fillStyle=cg;cx.beginPath();cx.arc(G.cloud.x,G.cloud.y,130,0,PI2);cx.fill();
+  }
+  // xanax dropovi
+  for(const d of G.drops){
+    const p2=0.7+Math.sin(G.t/200)*0.3;
+    cx.fillStyle=`rgba(0,204,255,${0.25*p2})`;cx.beginPath();cx.arc(d.x,d.y,14,0,PI2);cx.fill();
+    cx.font='13px serif';cx.textAlign='center';cx.fillText('💊',d.x,d.y+4);cx.textAlign='left';
+  }
+  [...G.enemies].sort((a,b)=>a.y-b.y).forEach(drawEnemy);
+  // bullets — flaše
+  for(const b of G.bullets){
+    cx.fillStyle='#8fd455';cx.beginPath();cx.ellipse(b.x,b.y,5,2.5,Math.atan2(b.vy,b.vx),0,PI2);cx.fill();
+  }
+  drawHero();
+  for(const pt of G.parts){cx.globalAlpha=Math.max(0,pt.l);cx.fillStyle=pt.col;cx.beginPath();cx.arc(pt.x,pt.y,pt.r,0,PI2);cx.fill();}
+  cx.globalAlpha=1;
+  // nirvana vinjeta
+  if(G.nirvT>0){
+    const vg=cx.createRadialGradient(W/2,H/2,H*0.2,W/2,H/2,H*0.85);
+    vg.addColorStop(0,'rgba(60,10,10,0)');vg.addColorStop(1,'rgba(80,10,10,0.55)');
+    cx.fillStyle=vg;cx.fillRect(0,0,W,H);
+  }
+  if(G.crashT>0){cx.fillStyle=`rgba(20,20,60,${0.2*(G.crashT/3500)})`;cx.fillRect(0,0,W,H);}
+  cx.restore();
+  if(G.ph==='play'){drawHUD();if(G.waveState==='break')drawBreak();}
+  if(G.ph==='dead')drawEnd(false);
+  if(G.ph==='win')drawEnd(true);
+}
+
+// ── LOOP ─────────────────────────────────────────
+let prevT=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt=Math.min(ts-prevT,50);prevT=ts;
+  G.t+=dt;G.fr++;
+  if(G.ph==='play')update(dt);
+  render();
+}
+requestAnimationFrame(loop);
+</script>
+</body></html>

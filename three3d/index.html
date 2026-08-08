@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Trainspotting: KVART — mini GTA</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Courier New',monospace;
+  user-select:none;-webkit-user-select:none;touch-action:none}
+#app{width:100%;height:100%}
+canvas{display:block}
+/* ── HUD ── */
+#hud{position:fixed;inset:0;pointer-events:none;color:#f5f5f0;z-index:5}
+#topbar{position:absolute;top:12px;left:12px;display:flex;flex-direction:column;gap:6px}
+.bar{width:190px;height:10px;background:rgba(0,0,0,0.6);border:1px solid #222;border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;width:0%;transition:width .2s}
+#anxF{background:#27ae60}
+.lbl{font-size:10px;color:#889;letter-spacing:1px}
+#stats{position:absolute;top:12px;right:12px;text-align:right;font-weight:700}
+#gold{color:#ffd447;font-size:18px}
+#dosije{color:#ff5252;font-size:14px;letter-spacing:2px;min-height:18px}
+#streak{font-size:13px;min-height:16px}
+#msg{position:absolute;top:64px;left:50%;transform:translateX(-50%);font-weight:700;font-size:15px;
+  text-shadow:0 0 8px #000;text-align:center;max-width:80%;transition:opacity .3s}
+#prompt{position:absolute;bottom:22%;left:50%;transform:translateX(-50%);font-size:13px;font-weight:700;
+  background:rgba(0,0,0,0.7);border:1px solid #333;padding:8px 16px;border-radius:8px;display:none}
+#prompt b{color:#f1c40f}
+#holdbar{width:100%;height:5px;background:#222;border-radius:3px;margin-top:6px;overflow:hidden;display:none}
+#holdbar>i{display:block;height:100%;width:0%;background:#f1c40f}
+#combo{position:absolute;top:34%;left:50%;transform:translateX(-50%);font-size:22px;font-weight:700;
+  color:#ffd447;text-shadow:0 0 12px #000;display:none}
+#controls{position:absolute;bottom:12px;left:12px;font-size:10px;color:#556}
+/* ── MODAL ── */
+#modal{position:fixed;inset:0;background:rgba(0,0,0,0.82);display:none;align-items:center;justify-content:center;z-index:20;pointer-events:auto}
+#mbox{background:#0d0d10;border:1px solid #2a2a2a;border-radius:12px;max-width:600px;width:92%;
+  padding:26px 30px;color:#e8e8e4;text-align:center}
+#mbox h2{color:#f1c40f;font-size:17px;margin-bottom:14px;letter-spacing:1px}
+#mbody{font-size:13px;line-height:1.75;margin-bottom:18px}
+.mbtn{display:inline-block;margin:5px;padding:10px 18px;background:#1a1a1e;border:1px solid #333;
+  border-radius:8px;color:#f5f5f0;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.mbtn:hover{border-color:#f1c40f}
+.mbtn.red{background:#c0392b;border-color:#c0392b;color:#fff}
+.mbtn.dis{opacity:0.35;pointer-events:none}
+.drug{display:flex;justify-content:space-between;align-items:center;text-align:left;
+  background:#131316;border:1px solid #26262a;border-radius:8px;padding:10px 14px;margin:7px 0}
+.drug small{color:#778;display:block;font-size:10px;margin-top:2px}
+#vin{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;transition:opacity .6s;
+  background:radial-gradient(ellipse at center,transparent 40%,rgba(120,0,0,0.55) 100%)}
+#ui{position:fixed;top:12px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:25}
+#ui a,#ui button{width:36px;height:36px;border:1px solid #2a2a2a;border-radius:9px;background:rgba(12,12,12,0.8);
+  color:#f5f5f0;font-size:15px;display:flex;align-items:center;justify-content:center;text-decoration:none;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="vin"></div>
+<div id="hud">
+  <div id="topbar">
+    <div class="lbl">😰 ANKSIOZNOST</div>
+    <div class="bar"><i id="anxF"></i></div>
+    <div id="streak"></div>
+  </div>
+  <div id="stats">
+    <div id="gold">🪙 0</div>
+    <div id="dosije"></div>
+  </div>
+  <div id="msg"></div>
+  <div id="prompt"><span id="ptxt"></span><div id="holdbar"><i id="holdF"></i></div></div>
+  <div id="combo"></div>
+  <div id="controls">WASD kretanje · SPACE skok · E radnja · SHIFT sprint · miš (prevuci) kamera</div>
+</div>
+<div id="modal"><div id="mbox"><h2 id="mtitle"></h2><div id="mbody"></div><div id="mbtns"></div></div></div>
+<div id="ui"><button id="bMute" title="Zvuk">🔊</button></div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>

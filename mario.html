@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Trainspotting: PRVO LICE — mario mod</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{height:100%}
+body{width:100%;height:100%;min-height:100dvh;overflow:hidden;background:#000;
+  touch-action:none;user-select:none;-webkit-user-select:none;
+  display:flex;align-items:center;justify-content:center}
+canvas{display:block;touch-action:none;cursor:pointer}
+#ui{position:fixed;top:10px;left:10px;display:flex;gap:8px;z-index:10}
+#ui button,#ui a{width:38px;height:38px;border:1px solid #2a2a2a;border-radius:9px;
+  background:rgba(12,12,12,0.78);color:#f5f5f0;font-size:16px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;text-decoration:none;line-height:1}
+</style>
+</head><body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <a href="index.html" title="Runner">🏃</a>
+  <a href="dota.html" title="Arena">⚔️</a>
+  <button id="bMute" title="Zvuk (M)">🔊</button>
+</div>
+<script>
+'use strict';
+const CV=document.getElementById('c');
+const W=CV.width=860,H=CV.height=540;
+const cx=CV.getContext('2d');
+const PI2=Math.PI*2;
+const rn=(a,b)=>a+Math.random()*(b-a);
+const ri=(a,b)=>Math.floor(rn(a,b));
+const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
+function resize(){const s=Math.min(innerWidth/W,innerHeight/H);CV.style.width=W*s+'px';CV.style.height=H*s+'px';}
+addEventListener('resize',resize);resize();
+
+// ── AUDIO ────────────────────────────────────────
+let MUTED=false;try{MUTED=localStorage.getItem('ts_muted')==='1';}catch(e){}
+let AC;function ga(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();return AC;}
+function snd(f,d,v=0.2,t='sine'){
+  if(MUTED)return;
+  try{const a=ga(),o=a.createOscillator(),g=a.createGain();
+    o.type=t;o.frequency.setValueAtTime(f,a.currentTime);
+    g.gain.setValueAtTime(v,a.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+d);
+    o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+d);
+  }catch(e){}
+}
+function sndJump(){if(MUTED)return;try{const a=ga(),o=a.createOscillator(),g=a.createGain();
+  o.type='square';o.frequency.setValueAtTime(240,a.currentTime);
+  o.frequency.exponentialRampToValueAtTime(560,a.currentTime+0.12);
+  g.gain.setValueAtTime(0.12,a.currentTime);g.gain.exponentialRampToValueAtTime(0.001,a.currentTime+0.16);
+  o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+0.17);}catch(e){}}
+function sndCoin(){snd(1245,0.06,0.12,'square');setTimeout(()=>snd(1660,0.14,0.1,'square'),55);}
+function sndTonk(){snd(160,0.07,0.22,'square');snd(320,0.05,0.1,'square');}
+function sndStomp(){snd(140,0.1,0.2,'square');setTimeout(()=>snd(90,0.12,0.16,'square'),60);}
+function sndPow(){[520,660,780,1040].forEach((f,i)=>setTimeout(()=>snd(f,0.11,0.13,'square'),i*80));}
+function sndDeath(){[400,300,220,150,100].forEach((f,i)=>setTimeout(()=>snd(f,0.16,0.16,'square'),i*130));}
+function sndFlag(){[523,659,784,1046,1318].forEach((f,i)=>setTimeout(()=>snd(f,0.14,0.13,'square'),i*95));}
+const elMute=document.getElementById('bMute');
+function syncMute(){elMute.textContent=MUTED?'🔇':'🔊';}
+elMute.addEventListener('click',()=>{MUTED=!MUTED;try{localStorage.setItem('ts_muted',MUTED?'1':'0');}catch(e){}syncMute();});
+syncMute();
+function vib(p){if(MUTED)return;try{navigator.vibrate&&navigator.vibrate(p);}catch(e){}}
+
+// ── SATIRA + INFO ────────────────────────────────
+const FACTS=[
+  '🍄 U igrama pečurka daje moć. U stvarnosti psilocibin menja percepciju na 4-6h — i ne biraš kako.',
+  '⭐ "Zvezda" — osećaj nedodirljivosti. Baš to osećanje je ubilo najviše ljudi na šinama.',
+  '🕳️ Prva rupa u koju upadneš nije šaht — nego "samo ovaj vikend", pa "samo radnim danom".',
+  '🚬 Nikotin je droga sa najviše ponovljenih pokušaja ostavljanja: prosek je 6-30 pokušaja.',
+  '💊 Tableta "za smirenje" bez recepta je ruski rulet: benzo + alkohol gasi disanje.',
+  '📞 Klinika nije kazna. Klinika je checkpoint — kao u igri, odatle nastavljaš dalje.',
+  '🧠 Mozak se oporavlja: već posle godinu dana apstinencije dopaminski sistem se regeneriše.',
+  '👮 Pandur te u igri vidi 3 sekunde. Dosije te u životu prati 30 godina.',
+];
+const LVL_NAMES=['ULICA','PARK','KEJ','KANALIZACIJA','KROV'];
+const LVL_JOKES=[
+  'Svet 1-1. Bez tutorijala. Kao i život.',
+  'Park. Danju deca, noću dileri. Ista klackalica.',
+  'Kej. Romantika i vlaga. I panduri.',
+  'Kanalizacija. Zelene cevi. Zvuči poznato?',
+  'Krov. Najbliže zvezdama. Najdalje od pomoći.',
+];
+
+// ── PROJEKCIJA (prvo lice) ───────────────────────
+const HOR=196,NEARY=498,NEAR=5.2,VIEW=36;
+function prz(z){const s=NEAR/(z+NEAR);return{s,gy:HOR+(NEARY-HOR)*s};}
+const MY=v=>v; // metri
+
+// ── STATE ────────────────────────────────────────
+let G;
+function genLevel(n){
+  const objs=[];let z=14;
+  const end=110+n*30;
+  while(z<end-14){
+    const r=Math.random();
+    if(r<0.2){ // red novčića
+      const h=Math.random()<0.5?1.1:2.6,cnt=3+ri(0,3);
+      for(let i=0;i<cnt;i++)objs.push({t:'coin',z:z+i*1.7,h});
+      z+=cnt*1.7+rn(2.5,4);
+    }else if(r<0.42){ objs.push({t:'guba',z,walk:rn(0,PI2)});z+=rn(4,7);
+    }else if(r<0.58){ objs.push({t:'block',z,used:false,pow:Math.random()<0.3});z+=rn(3.5,6);
+    }else if(r<0.72){ objs.push({t:'pipe',z});z+=rn(4.5,7);
+    }else if(r<0.86&&n>=1){ objs.push({t:'gap',z,w:rn(2.2,3.4)});z+=rn(5,8);
+    }else{ objs.push({t:'coin',z,h:1.1});z+=rn(3,5);}
+  }
+  objs.push({t:'flag',z:end});
+  return{objs,end};
+}
+function newGame(){
+  G={ph:'play',t:0,fr:0,lvl:0,lives:3,score:0,coins:0,
+    wz:0,py:0,jv:0,gnd:true,holdJ:false,
+    big:false,starT:0,crashT:0,shroomT:0,invT:0,
+    lvlData:genLevel(0),shk:0,dip:0,msg:'',msgT:0,
+    deathT:0,fallT:0,clearT:0,fact:-1,deathCause:''};
+  announce();
+}
+function announce(){
+  G.msg=`NIVO 1-${G.lvl+1}: ${LVL_NAMES[G.lvl]} — ${LVL_JOKES[G.lvl]}`;G.msgT=3400;
+}
+G={ph:'title',t:0,fr:0};
+
+// ── LEADERBOARD ──────────────────────────────────
+let LB=[];try{LB=JSON.parse(localStorage.getItem('ts_mario_lb')||'[]');}catch(e){LB=[];}
+function saveLB(){
+  LB.push({score:G.score,lvl:G.lvl+1,d:new Date().toLocaleDateString('sr')});
+  LB.sort((a,b)=>b.score-a.score);LB=LB.slice(0,5);
+  try{localStorage.setItem('ts_mario_lb',JSON.stringify(LB));}catch(e){}
+}
+
+// ── INPUT ────────────────────────────────────────
+function doJump(){
+  if(G.ph!=='play'||G.deathT>0||G.fallT>0||G.clearT>0)return;
+  if(G.gnd){G.jv=8.4;G.gnd=false;G.holdJ=true;sndJump();vib(14);}
+}
+addEventListener('keydown',e=>{
+  if(e.code==='KeyM'){MUTED=!MUTED;try{localStorage.setItem('ts_muted',MUTED?'1':'0');}catch(err){}syncMute();return;}
+  if(G.ph==='title'){if(e.code==='Space'){newGame();e.preventDefault();}return;}
+  if(G.ph==='over'||G.ph==='win'){if(e.code==='Space')G.ph='title';return;}
+  if(G.ph==='info'){if(e.code==='Space'){startNextLvl();e.preventDefault();}return;}
+  if(['Space','ArrowUp','KeyW'].includes(e.code)){doJump();e.preventDefault();}
+});
+addEventListener('keyup',e=>{if(['Space','ArrowUp','KeyW'].includes(e.code))G.holdJ=false;});
+CV.addEventListener('pointerdown',e=>{
+  if(G.ph==='title'){newGame();return;}
+  if(G.ph==='over'||G.ph==='win'){G.ph='title';return;}
+  if(G.ph==='info'){startNextLvl();return;}
+  doJump();
+});
+CV.addEventListener('pointerup',()=>{G.holdJ=false;});
+function startNextLvl(){
+  G.lvl++;G.wz=0;G.py=0;G.jv=0;G.gnd=true;
+  G.lvlData=genLevel(G.lvl);G.ph='play';G.clearT=0;announce();
+}
+
+// ── UPDATE ───────────────────────────────────────
+function update(dt){
+  G.t+=dt;G.fr++;
+  if(G.shk>0)G.shk=Math.max(0,G.shk-dt*0.03);
+  if(G.dip!==0)G.dip*=Math.pow(0.85,dt/16.7);
+  if(G.msgT>0)G.msgT-=dt;
+  if(G.starT>0){G.starT-=dt;if(G.starT<=0){G.crashT=3000;G.msg='💥 CRASH. Zvezda uvek prestane.';G.msgT=2500;snd(120,1.0,0.2,'sawtooth');}}
+  if(G.crashT>0)G.crashT-=dt;
+  if(G.shroomT>0)G.shroomT-=dt;
+  if(G.invT>0)G.invT-=dt;
+
+  // smrt / pad / clear animacije
+  if(G.deathT>0){G.deathT-=dt;if(G.deathT<=0)respawn();return;}
+  if(G.fallT>0){G.fallT-=dt;G.py-=9*dt/1000;if(G.fallT<=0)respawn();return;}
+  if(G.clearT>0){G.clearT-=dt;
+    if(G.clearT<=0){
+      if(G.lvl>=4){G.ph='win';saveLB();sndFlag();}
+      else{G.ph='info';G.fact=(G.fact+1)%FACTS.length;}
+    }return;}
+
+  // kretanje napred (auto-run kao Mario speedrun)
+  const spd=(5.8+G.lvl*0.55)*(G.crashT>0?0.55:1)*(G.starT>0?1.25:1);
+  const dz=spd*dt/1000;
+  const prevWz=G.wz;G.wz+=dz;
+
+  // skok fizika (hold = viši skok)
+  const g=G.holdJ&&G.jv>2?11:21;
+  G.jv-=g*dt/1000;G.py+=G.jv*dt/1000;
+  if(G.py<=0){G.py=0;G.jv=0;G.gnd=true;}
+
+  // objekti — prolazak kroz z≈0
+  for(const o of G.lvlData.objs){
+    if(o.dead)continue;
+    if(o.bumpT>0)o.bumpT-=dt;
+    const zRel=o.z-G.wz,zPrev=o.z-prevWz;
+    const crossed=zPrev>0&&zRel<=0.4&&zRel>-1.2;
+    if(o.t==='coin'&&!o.dead&&Math.abs(zRel)<0.9){
+      if(o.h>G.py-0.2&&o.h<G.py+2.3){o.dead=true;G.coins++;G.score+=10;sndCoin();}
+    }
+    if(o.t==='guba'&&!o.dead){
+      // guba (pozornik) hoda ka tebi
+      o.z-=0.9*dt/1000;
+      if(Math.abs(o.z-G.wz)<0.7){
+        if(G.starT>0){o.dead=true;G.score+=100;sndStomp();burstShk(6);}
+        else if(G.py>0.55){ // STOMP — dovoljno je da si iznad njega
+          o.dead=true;G.score+=100;G.jv=Math.max(G.jv,5.5);G.dip=14;sndStomp();vib(30);
+        }else if(G.invT<=0)hitPlayer('guba');
+      }
+    }
+    if(o.t==='block'&&!o.used&&Math.abs(zRel)<0.8){
+      // udariš GLAVOM odozdo: blok na 3.3m, glava = py+2.1
+      if(G.jv>0&&G.py+2.1>=3.0&&G.py+2.1<=3.9){
+        o.used=true;o.bumpT=260;G.jv=-1.5;sndTonk();G.shk=5;vib(20);
+        if(o.pow){o.spawn='shroom';G.msg='🍄 PEČURKA! (u igri: moć · u životu: 6h haosa)';G.msgT=2600;}
+        else{G.coins++;G.score+=10;sndCoin();o.spawn='coin';}
+        o.spawnT=900;
+      }
+    }
+    if(o.t==='block'&&o.used&&o.spawn==='shroom'&&o.spawnT>0){
+      o.spawnT-=dt;
+      if(Math.abs(zRel)<0.9&&o.spawnT<650){ // pečurka "padne" do tebe
+        o.spawn=null;G.big=true;G.shroomT=6000;G.score+=50;sndPow();vib([20,30,50]);
+      }
+    }
+    if(o.t==='pipe'&&crossed){
+      if(G.py<1.9&&G.invT<=0&&G.starT<=0)hitPlayer('pipe');
+    }
+    if(o.t==='gap'){
+      const inGap=G.wz>o.z&&G.wz<o.z+o.w;
+      if(inGap&&G.py<=0.02&&G.fallT<=0){
+        G.fallT=1100;G.deathCause='šaht';sndDeath();vib([80,60,160]);
+      }
+    }
+    if(o.t==='flag'&&crossed&&G.clearT<=0){
+      G.clearT=1900;G.score+=500+G.lives*100;sndFlag();
+      G.msg='🏥 KLINIKA! Nivo pređen.';G.msgT=1900;
+    }
+  }
+}
+function burstShk(n){G.shk=Math.max(G.shk,n);}
+function hitPlayer(what){
+  if(G.big){ // pečurka te spasi jednom — "izgubio si moć"
+    G.big=false;G.invT=1800;G.shk=10;snd(200,0.3,0.2,'sawtooth');vib(60);
+    G.msg='🍄 Prošlo je. Kao i uvek.';G.msgT=2000;return;
+  }
+  G.deathT=1400;G.deathCause=what==='guba'?'pandur':'cev';
+  G.shk=16;sndDeath();vib([100,60,200]);
+}
+function respawn(){
+  G.lives--;
+  if(G.lives<=0){G.ph='over';saveLB();return;}
+  G.wz=0;G.py=0;G.jv=0;G.gnd=true;G.big=false;G.starT=0;G.crashT=0;G.invT=2000;
+  for(const o of G.lvlData.objs){if(o.t==='guba')o.dead=false;if(o.t==='coin')o.dead=false;}
+  G.msg=`💔 -1 život (${G.lives}). Checkpoint: početak. Kao na klinici — kreneš ispočetka, ali znaš put.`;G.msgT=3000;
+}
+
+// ── DRAW ─────────────────────────────────────────
+function drawSky(){
+  const sg=cx.createLinearGradient(0,0,0,HOR);
+  sg.addColorStop(0,'#050514');sg.addColorStop(1,'#141433');
+  cx.fillStyle=sg;cx.fillRect(0,0,W,HOR+2);
+  cx.fillStyle='rgba(255,255,255,0.7)';
+  for(let i=0;i<40;i++){const sx=(i*97+G.fr*0.02)%W;cx.fillRect(sx,(i*53)%HOR,1.4,1.4);}
+  const mh=cx.createRadialGradient(W-140,60,8,W-140,60,70);
+  mh.addColorStop(0,'rgba(220,215,160,0.3)');mh.addColorStop(1,'rgba(220,215,160,0)');
+  cx.fillStyle=mh;cx.beginPath();cx.arc(W-140,60,70,0,PI2);cx.fill();
+  cx.fillStyle='#ccc870';cx.beginPath();cx.arc(W-140,60,17,0,PI2);cx.fill();
+  cx.fillStyle='#050514';cx.beginPath();cx.arc(W-133,56,13,0,PI2);cx.fill();
+}
+function drawStreet(){
+  // tlo
+  const gg=cx.createLinearGradient(0,HOR,0,H);
+  gg.addColorStop(0,'#16120c');gg.addColorStop(1,'#241c12');
+  cx.fillStyle=gg;cx.fillRect(0,HOR,W,H-HOR);
+  // poprečne linije koje jure ka tebi
+  const step=2.2,off=G.wz%step;
+  for(let z=step-off;z<VIEW;z+=step){
+    const p=prz(z);
+    cx.fillStyle=`rgba(0,0,0,${0.15+p.s*0.3})`;
+    cx.fillRect(0,p.gy,W,Math.max(1,3.5*p.s));
+  }
+  // ivice puta (perspektiva ka centru)
+  [[-4.4,'#2a2318'],[4.4,'#2a2318']].forEach(([dx,col])=>{
+    cx.strokeStyle=col;cx.lineWidth=3;
+    cx.beginPath();
+    const p0=prz(0.4),p1=prz(VIEW);
+    cx.moveTo(W/2+dx*66*p0.s,p0.gy);cx.lineTo(W/2+dx*66*p1.s,p1.gy);cx.stroke();
+  });
+  // zgrade sa obe strane (klize pored)
+  const bstep=6,boff=G.wz%bstep;
+  for(let z=bstep-boff;z<VIEW;z+=bstep){
+    const p=prz(z),bh=(130+((Math.floor((G.wz+z)/bstep)*7919)%90))*p.s;
+    [[-1,-7.4],[1,7.4]].forEach(([side,dx])=>{
+      const bx=W/2+dx*66*p.s,bw=120*p.s;
+      cx.fillStyle=`rgba(10,10,22,${0.5+p.s*0.4})`;
+      cx.fillRect(side<0?bx-bw:bx,p.gy-bh,bw,bh);
+      cx.fillStyle=`rgba(255,190,60,${0.13*p.s})`;
+      for(let wy=0;wy<3;wy++)for(let wx2=0;wx2<2;wx2++)
+        cx.fillRect((side<0?bx-bw:bx)+bw*0.2+wx2*bw*0.36,p.gy-bh+bh*0.15+wy*bh*0.26,bw*0.16,bh*0.12);
+    });
+  }
+}
+function drawGap(o){
+  const z0=o.z-G.wz,z1=o.z+o.w-G.wz;
+  if(z1<0||z0>VIEW)return;
+  const p0=prz(Math.max(0.01,z0)),p1=prz(Math.max(0.02,z1));
+  const hw0=140*p0.s,hw1=140*p1.s;
+  cx.fillStyle='#030303';
+  cx.beginPath();
+  cx.moveTo(W/2-hw0,p0.gy);cx.lineTo(W/2+hw0,p0.gy);
+  cx.lineTo(W/2+hw1,p1.gy);cx.lineTo(W/2-hw1,p1.gy);cx.closePath();cx.fill();
+  cx.strokeStyle='rgba(255,210,60,0.5)';cx.lineWidth=Math.max(1,2.5*p0.s);
+  cx.beginPath();cx.moveTo(W/2-hw0,p0.gy);cx.lineTo(W/2+hw0,p0.gy);cx.stroke();
+  if(z0>2&&z0<14){cx.fillStyle=`rgba(255,210,60,${0.75*p0.s+0.2})`;cx.font=`bold ${Math.max(8,15*p0.s)}px Courier New`;cx.textAlign='center';cx.fillText('⚠ ŠAHT — SKOČI!',W/2,p0.gy-8*p0.s);cx.textAlign='left';}
+}
+function drawCoin(o){
+  const z=o.z-G.wz;if(o.dead||z<-0.5||z>VIEW)return;
+  const p=prz(Math.max(0.01,z));
+  const y=p.gy-o.h*54*p.s,R=Math.max(3,13*p.s);
+  const spin=Math.abs(Math.sin(G.t/160+o.z));
+  const gl=cx.createRadialGradient(W/2,y,0,W/2,y,R*2);
+  gl.addColorStop(0,'rgba(255,212,71,0.4)');gl.addColorStop(1,'rgba(255,212,71,0)');
+  cx.fillStyle=gl;cx.beginPath();cx.arc(W/2,y,R*2,0,PI2);cx.fill();
+  cx.fillStyle='#c98f10';cx.beginPath();cx.ellipse(W/2,y,Math.max(1.5,R*spin),R,0,0,PI2);cx.fill();
+  cx.fillStyle='#ffd447';cx.beginPath();cx.ellipse(W/2,y,Math.max(1,R*spin*0.75),R*0.75,0,0,PI2);cx.fill();
+}
+function drawGuba(o){
+  const z=o.z-G.wz;if(o.dead||z<-0.5||z>VIEW)return;
+  const p=prz(Math.max(0.01,z));
+  const s=p.s,wob=Math.sin(G.t/130+o.walk)*3*s;
+  const gx=W/2+wob,gy=p.gy,R=34*s;
+  cx.fillStyle='rgba(0,0,0,0.35)';cx.beginPath();cx.ellipse(gx,gy,R*0.9,R*0.22,0,0,PI2);cx.fill();
+  // telo — plavi pozornik (goomba stav)
+  cx.fillStyle='#16305c';cx.beginPath();
+  cx.moveTo(gx-R*0.85,gy);cx.quadraticCurveTo(gx-R*0.9,gy-R*1.5,gx,gy-R*1.6);
+  cx.quadraticCurveTo(gx+R*0.9,gy-R*1.5,gx+R*0.85,gy);cx.closePath();cx.fill();
+  // lice
+  cx.fillStyle='#c8a060';cx.beginPath();cx.arc(gx,gy-R*1.05,R*0.42,0,PI2);cx.fill();
+  // šapka
+  cx.fillStyle='#0e1e3e';cx.beginPath();cx.arc(gx,gy-R*1.25,R*0.44,Math.PI,PI2);cx.fill();
+  cx.fillRect(gx-R*0.5,gy-R*1.27,R,R*0.1);
+  // ljute obrve
+  if(s>0.25){
+    cx.strokeStyle='#1a0e08';cx.lineWidth=Math.max(1,2*s);
+    cx.beginPath();cx.moveTo(gx-R*0.24,gy-R*1.16);cx.lineTo(gx-R*0.08,gy-R*1.08);
+    cx.moveTo(gx+R*0.24,gy-R*1.16);cx.lineTo(gx+R*0.08,gy-R*1.08);cx.stroke();
+  }
+  // noge (koračaju)
+  cx.fillStyle='#0c1830';
+  cx.fillRect(gx-R*0.5+wob*0.5,gy-R*0.12,R*0.34,R*0.16);
+  cx.fillRect(gx+R*0.16-wob*0.5,gy-R*0.12,R*0.34,R*0.16);
+  if(z>2.5&&z<12){cx.fillStyle=`rgba(140,220,255,${0.5*s+0.2})`;cx.font=`bold ${Math.max(7,13*s)}px Courier New`;cx.textAlign='center';cx.fillText('SKOČI NA NJEGA!',gx,gy-R*1.9);cx.textAlign='left';}
+}
+function drawBlock(o){
+  const z=o.z-G.wz;if(z<-0.5||z>VIEW)return;
+  const p=prz(Math.max(0.01,z));
+  const bump=o.bumpT>0?Math.sin((1-o.bumpT/260)*Math.PI)*14*p.s:0;
+  const bs=Math.max(6,30*p.s),y=p.gy-3.3*54*p.s-bump;
+  cx.fillStyle=o.used?'#4a3a22':'#b8860b';
+  cx.fillRect(W/2-bs/2,y-bs,bs,bs);
+  cx.strokeStyle=o.used?'#2c2214':'#7a5a08';cx.lineWidth=Math.max(1,2*p.s);
+  cx.strokeRect(W/2-bs/2,y-bs,bs,bs);
+  if(!o.used&&p.s>0.15){
+    cx.fillStyle='#fff8dc';cx.font=`bold ${bs*0.62}px Courier New`;cx.textAlign='center';
+    cx.fillText('?',W/2,y-bs*0.28);cx.textAlign='left';
+  }
+  if(o.used&&o.spawn==='shroom'&&o.spawnT>0){
+    const my2=y-bs-12*p.s;
+    cx.font=`${Math.max(10,26*p.s)}px serif`;cx.textAlign='center';cx.fillText('🍄',W/2,my2);cx.textAlign='left';
+  }
+}
+function drawPipe(o){
+  const z=o.z-G.wz;if(z<-0.6||z>VIEW)return;
+  const p=prz(Math.max(0.01,z));
+  const pw=Math.max(10,58*p.s),ph=2.2*54*p.s,x=W/2-pw/2,y=p.gy-ph;
+  const pg=cx.createLinearGradient(x,0,x+pw,0);
+  pg.addColorStop(0,'#0e5a1e');pg.addColorStop(0.4,'#2e9e4a');pg.addColorStop(1,'#0a3a14');
+  cx.fillStyle=pg;cx.fillRect(x,y,pw,ph);
+  cx.fillStyle='#2e9e4a';cx.fillRect(x-pw*0.12,y,pw*1.24,ph*0.22);
+  cx.strokeStyle='rgba(0,0,0,0.5)';cx.lineWidth=Math.max(1,2*p.s);
+  cx.strokeRect(x-pw*0.12,y,pw*1.24,ph*0.22);cx.strokeRect(x,y,pw,ph);
+  if(z>2.5&&z<12){cx.fillStyle=`rgba(120,255,150,${0.5*p.s+0.2})`;cx.font=`bold ${Math.max(7,13*p.s)}px Courier New`;cx.textAlign='center';cx.fillText('⬆ CEV — SKOČI!',W/2,y-8*p.s);cx.textAlign='left';}
+}
+function drawFlag(o){
+  const z=o.z-G.wz;if(z<-1||z>VIEW)return;
+  const p=prz(Math.max(0.01,z));
+  const fh=4.6*54*p.s,x=W/2+90*p.s,y=p.gy;
+  cx.strokeStyle='#d8d8d8';cx.lineWidth=Math.max(1.5,4*p.s);
+  cx.beginPath();cx.moveTo(x,y);cx.lineTo(x,y-fh);cx.stroke();
+  const wav=Math.sin(G.t/300)*6*p.s;
+  cx.fillStyle='#e8e8e4';cx.beginPath();
+  cx.moveTo(x,y-fh);cx.lineTo(x-56*p.s,y-fh+16*p.s+wav);cx.lineTo(x,y-fh+32*p.s);cx.closePath();cx.fill();
+  cx.fillStyle='#c0392b';cx.font=`bold ${Math.max(8,15*p.s)}px Courier New`;cx.textAlign='center';
+  cx.fillText('✚',x-28*p.s,y-fh+22*p.s+wav*0.5);
+  // klinika zgrada iza
+  const bw=190*p.s,bh=2.6*54*p.s;
+  cx.fillStyle='#1a2418';cx.fillRect(W/2-bw/2,y-bh,bw,bh);
+  cx.fillStyle='rgba(120,255,150,0.75)';cx.font=`bold ${Math.max(7,16*p.s)}px Courier New`;
+  cx.fillText('🏥 KLINIKA',W/2,y-bh-8*p.s);
+  cx.fillStyle='rgba(255,240,160,0.5)';
+  for(let i=0;i<3;i++)cx.fillRect(W/2-bw*0.32+i*bw*0.26,y-bh*0.7,bw*0.14,bh*0.3);
+  cx.textAlign='left';
+}
+// ── RUKE (prvo lice!) ────────────────────────────
+function drawHands(){
+  const run=G.gnd?Math.sin(G.t/125):0;
+  const jump=!G.gnd?cl(G.py*14,0,55):0;
+  const sl=G.big?'#8a2040':'#5a1a2e';
+  [[-1,run],[1,-run]].forEach(([side,ph])=>{
+    const hx=W/2+side*(W*0.34)-side*Math.abs(ph)*6;
+    const hy=H-64+ph*26-jump;
+    // rukav
+    cx.fillStyle=sl;
+    cx.beginPath();
+    cx.moveTo(hx-34,H+20);cx.quadraticCurveTo(hx-30,hy+28,hx-20,hy+6);
+    cx.lineTo(hx+22,hy+8);cx.quadraticCurveTo(hx+34,hy+34,hx+40,H+20);cx.closePath();cx.fill();
+    cx.fillStyle='rgba(0,0,0,0.25)';cx.fillRect(hx-22,hy+4,46,7);
+    // šaka (pesnica)
+    const skin='#c89060';
+    cx.fillStyle=skin;cx.beginPath();cx.ellipse(hx,hy,20,16,side*0.2,0,PI2);cx.fill();
+    cx.fillStyle='rgba(0,0,0,0.15)';cx.beginPath();cx.ellipse(hx+side*6,hy+3,10,7,side*0.2,0,PI2);cx.fill();
+    // prsti nagoveštaj
+    cx.strokeStyle='rgba(0,0,0,0.3)';cx.lineWidth=1.5;
+    for(let i=0;i<3;i++){cx.beginPath();cx.moveTo(hx-10+i*8,hy-13);cx.quadraticCurveTo(hx-8+i*8,hy-7,hx-10+i*8,hy-2);cx.stroke();}
+  });
+  // star aura na rukama
+  if(G.starT>0){
+    cx.globalAlpha=0.25+Math.sin(G.t/90)*0.15;
+    cx.fillStyle=`hsl(${(G.t/4)%360},80%,60%)`;
+    cx.fillRect(0,H-130,W,130);cx.globalAlpha=1;
+  }
+}
+function drawHUD(){
+  cx.fillStyle='rgba(0,0,0,0.55)';cx.fillRect(0,0,W,34);
+  cx.fillStyle='#fff';cx.font='bold 13px Courier New';
+  cx.fillText(`SCORE ${String(G.score).padStart(6,'0')}`,56,22);
+  cx.fillStyle='#ffd447';cx.fillText(`🪙 ${G.coins}`,240,22);
+  cx.fillStyle='#ff8888';cx.fillText(`💔 ${G.lives}`,330,22);
+  cx.textAlign='center';
+  cx.fillStyle='#aaa';cx.fillText(`NIVO 1-${G.lvl+1} ${LVL_NAMES[G.lvl]}`,W/2+60,22);
+  cx.textAlign='right';
+  const pct=cl(G.wz/G.lvlData.end,0,1);
+  cx.fillStyle='#333';cx.fillRect(W-190,12,170,9);
+  cx.fillStyle='#27ae60';cx.fillRect(W-190,12,170*pct,9);
+  cx.fillStyle='#666';cx.font='8px Courier New';cx.fillText('🏥',W-14,20);
+  cx.textAlign='left';
+  if(G.big){cx.fillStyle='#ff9dc0';cx.font='11px Courier New';cx.fillText('🍄 VELIKI (1 udarac zaštite)',56,48);}
+  if(G.msgT>0){
+    cx.globalAlpha=Math.min(1,G.msgT/400);
+    cx.textAlign='center';cx.fillStyle='#fff';cx.font='bold 15px Courier New';
+    cx.shadowColor='#000';cx.shadowBlur=8;cx.fillText(G.msg,W/2,72);cx.shadowBlur=0;
+    cx.globalAlpha=1;cx.textAlign='left';
+  }
+  if(G.wz<8&&G.lvl===0){cx.fillStyle='rgba(255,255,255,0.3)';cx.font='11px Courier New';cx.textAlign='center';cx.fillText('SPACE / TAP = skok · drži za viši skok',W/2,H-140);cx.textAlign='left';}
+}
+function drawTitle(){
+  cx.fillStyle='#050508';cx.fillRect(0,0,W,H);
+  drawSky();
+  cx.textAlign='center';
+  cx.fillStyle='#c0392b';cx.font='bold 34px Courier New';
+  cx.shadowColor='#c0392b';cx.shadowBlur=22;cx.fillText('TRAINSPOTTING: PRVO LICE',W/2,H*0.3);cx.shadowBlur=0;
+  cx.fillStyle='#f1c40f';cx.font='bold 14px Courier New';cx.fillText('~ mario mod ~',W/2,H*0.38);
+  cx.fillStyle='#888';cx.font='12px Courier New';
+  cx.fillText('Trči kroz kvart iz svojih očiju. Skači na pandure. Udaraj ? blokove glavom.',W/2,H*0.48);
+  cx.fillText('Pečurka ti daje moć — u igri. Cilj svakog nivoa: 🏥 KLINIKA.',W/2,H*0.54);
+  cx.fillStyle='#555';cx.font='10px Courier New';
+  cx.fillText('5 nivoa: '+LVL_NAMES.join(' → '),W/2,H*0.62);
+  if(Math.floor(G.t/550)%2===0){
+    cx.fillStyle='#fff';cx.font='bold 15px Courier New';cx.fillText('[ SPACE / TAP — POČNI ]',W/2,H*0.76);
+  }
+  if(LB.length){cx.fillStyle='#333';cx.font='10px Courier New';cx.fillText(`🏆 ${LB[0].score} (nivo ${LB[0].lvl}) ${LB[0].d}`,W/2,H*0.88);}
+  cx.textAlign='left';
+}
+function drawInfo(){
+  cx.fillStyle='rgba(0,0,0,0.9)';cx.fillRect(0,0,W,H);
+  cx.textAlign='center';
+  cx.fillStyle='#27ae60';cx.font='bold 26px Courier New';
+  cx.fillText(`✔ NIVO 1-${G.lvl+1} PREĐEN`,W/2,H*0.22);
+  cx.fillStyle='#f1c40f';cx.font='bold 12px Courier New';cx.fillText('── ZNAŠ LI? ──',W/2,H*0.36);
+  const fact=FACTS[Math.max(0,G.fact)];
+  cx.fillStyle='#e8e8e4';cx.font='14px Courier New';
+  const ws=fact.split(' ');let l='',ly=H*0.44;
+  ws.forEach(w=>{const t2=l+w+' ';if(cx.measureText(t2).width>640&&l){cx.fillText(l.trim(),W/2,ly);l=w+' ';ly+=22;}else l=t2;});
+  if(l)cx.fillText(l.trim(),W/2,ly);
+  cx.fillStyle='#888';cx.font='12px Courier New';
+  cx.fillText(`SCORE ${G.score} · 🪙 ${G.coins} · 💔 ${G.lives}`,W/2,H*0.62);
+  if(Math.floor(G.t/550)%2===0){
+    cx.fillStyle='#fff';cx.font='bold 14px Courier New';
+    cx.fillText(`[ SPACE / TAP — NIVO 1-${G.lvl+2}: ${LVL_NAMES[G.lvl+1]} ]`,W/2,H*0.75);
+  }
+  cx.textAlign='left';
+}
+function drawEnd(win){
+  cx.fillStyle='rgba(0,0,0,0.92)';cx.fillRect(0,0,W,H);
+  cx.textAlign='center';
+  if(win){
+    cx.fillStyle='#27ae60';cx.font='bold 38px Courier New';
+    cx.shadowColor='#27ae60';cx.shadowBlur=25;cx.fillText('STIGAO SI DO KRAJA',W/2,H*0.22);cx.shadowBlur=0;
+    cx.fillStyle='#e8e8e4';cx.font='13px Courier New';
+    cx.fillText('5 nivoa, od ulice do krova. Svaki se završavao na istom mestu: KLINICI.',W/2,H*0.34);
+    cx.fillStyle='#f1c40f';
+    cx.fillText('To nije slučajno. Izlaz iz svakog nivoa je isti — samo treba da ga vidiš.',W/2,H*0.41);
+    cx.fillStyle='#888';cx.font='11px Courier New';
+    cx.fillText('U Mario igri princeza je uvek u drugom zamku. Pomoć nije — pomoć je u prvom.',W/2,H*0.49);
+  }else{
+    const t={pandur:'UHVATIO TE PANDUR',cev:'CEV. BUKVALNO.',šaht:'PROPAO SI KROZ ŠAHT'};
+    cx.fillStyle='#ff2222';cx.font='bold 38px Courier New';
+    cx.shadowColor='#ff0000';cx.shadowBlur=28;cx.fillText(t[G.deathCause]||'KRAJ',W/2,H*0.22);cx.shadowBlur=0;
+    cx.fillStyle='#ffcc99';cx.font='12px Courier New';
+    cx.fillText('Nema više života. U igri. U stvarnosti ih nikad nije bilo više od jednog.',W/2,H*0.33);
+    cx.fillStyle='#aaccff';
+    cx.fillText('Zato se u stvarnosti ne igra na sreću — igra se na pomoć: razgovor, klinika, 112.',W/2,H*0.4);
+  }
+  cx.fillStyle='#f1c40f';cx.font='bold 14px Courier New';
+  cx.fillText(`SCORE ${G.score} · 🪙 ${G.coins} · nivo ${G.lvl+1}/5`,W/2,H*0.55);
+  LB.slice(0,3).forEach((e,i)=>{
+    cx.fillStyle=i===0?'#ffd447':'#555';cx.font='11px Courier New';
+    cx.fillText(`${i+1}. ${e.score} — nivo ${e.lvl} (${e.d})`,W/2,H*0.63+i*18);
+  });
+  if(Math.floor(G.t/550)%2===0){
+    cx.fillStyle='#555';cx.font='12px Courier New';cx.fillText('[ SPACE / TAP — ponovo ]',W/2,H*0.9);
+  }
+  cx.textAlign='left';
+}
+function render(){
+  cx.clearRect(0,0,W,H);
+  if(G.ph==='title'){drawTitle();return;}
+  if(G.ph==='info'){drawInfo();return;}
+  if(G.ph==='over'){drawEnd(false);return;}
+  if(G.ph==='win'){drawEnd(true);return;}
+  cx.save();
+  // kamera: skok diže pogled, bob pri trčanju, dip pri stompu
+  const bob=G.gnd?Math.sin(G.t/125)*4:0;
+  let camY=G.py*46-bob+G.dip;
+  if(G.fallT>0)camY=-(1100-G.fallT)*0.4; // propadanje u šaht
+  if(G.shk>0)cx.translate(rn(-G.shk,G.shk),rn(-G.shk*0.6,G.shk*0.6));
+  cx.translate(0,camY);
+  if(G.shroomT>0){ // pečurka: blagi wobble percepcije — satira
+    const k=Math.sin(G.t/220)*0.006;
+    cx.transform(1,k,k*0.7,1,0,0);
+    cx.filter=`hue-rotate(${Math.sin(G.t/500)*30}deg) saturate(1.4)`;
+  }
+  if(G.starT>0)cx.filter=`hue-rotate(${(G.t/3)%360}deg) saturate(2)`;
+  drawSky();drawStreet();
+  const objs=[...G.lvlData.objs].sort((a,b)=>(b.z-G.wz)-(a.z-G.wz));
+  for(const o of objs){
+    if(o.t==='gap')drawGap(o);
+  }
+  for(const o of objs){
+    if(o.t==='coin')drawCoin(o);
+    else if(o.t==='guba')drawGuba(o);
+    else if(o.t==='block')drawBlock(o);
+    else if(o.t==='pipe')drawPipe(o);
+    else if(o.t==='flag')drawFlag(o);
+  }
+  cx.filter='none';
+  cx.restore();
+  // smrt fleš
+  if(G.deathT>0){cx.fillStyle=`rgba(120,0,0,${0.5*(G.deathT/1400)})`;cx.fillRect(0,0,W,H);}
+  if(G.fallT>0){cx.fillStyle=`rgba(0,0,0,${0.8*(1-G.fallT/1100)})`;cx.fillRect(0,0,W,H);}
+  if(G.crashT>0){cx.fillStyle=`rgba(20,20,60,${0.25*(G.crashT/3000)})`;cx.fillRect(0,0,W,H);}
+  if(G.invT>0&&G.fr%10<5){cx.fillStyle='rgba(255,255,255,0.05)';cx.fillRect(0,0,W,H);}
+  drawHands();
+  drawHUD();
+}
+
+// ── LOOP ─────────────────────────────────────────
+let prevT=0;
+function loop(ts){
+  requestAnimationFrame(loop);
+  const dt=Math.min(ts-prevT,50);prevT=ts;
+  if(G.ph==='play')update(dt);else G.t+=dt;
+  render();
+}
+requestAnimationFrame(loop);
+</script>
+</body></html>
