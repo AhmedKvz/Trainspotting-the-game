@@ -1,19 +1,33 @@
 # TRAINSPOTTING GAMES — Analiza i uputstvo (handoff)
 
 > Pročitaj ovo prvo u svakoj novoj sesiji. Ovo je izvor istine za projekat.
-> Stanje: 26.6.2026. Sve igre testirane, bez konzolnih grešaka.
+> Stanje: 27.9.2026. Sve igre testirane, bez konzolnih grešaka.
+> **Runner (`index.html`) je glavna igra i ono što ide live.**
 
 ## Šta postoji (4 igre, jedan svet)
 
 | Igra | Fajl | Tehnologija | Žanr |
 |---|---|---|---|
-| 🏃 Runner (original, v4) | `index.html` | vanilla canvas | endless runner — preskakanje prepreka na vozu |
+| 🏃 **Runner v5 — GLAVNA IGRA** | `index.html` | vanilla canvas | trčiš po krovu kompozicije i **preskačeš procepe između vagona** |
 | ⚔️ Arena (dota mod) | `dota.html` | vanilla canvas | MOBA-lite — braniš KVART, Q/W/E/R droge kao moći |
 | 🍄 Prvo lice (mario mod) | `mario.html` | vanilla canvas | first-person auto-run platformer, 5 nivoa do KLINIKE |
 | 🌃 KVART (mini-GTA, **najnovije**) | `three3d/` | **Three.js + Vite** | open-world 3D: krađa, dileri, policija, vagoni |
 
 `index-v1-original.html` = netaknuti original. `CHANGELOG-v2.md` = istorijat v2→v4 + modovi.
 Canvas igre su međusobno linkovane dugmadima gore levo (🏃 ⚔️ 🍄).
+
+## Runner v5 — preskakanje vagona (srž igre)
+
+- Konstante: `TLN` (dužina vagona), `TGAP` (procep), `PLZ` (dubina igrača),
+  `ROOFW` (poluširina krova). Segment nosi svoj `len` (30% su duplo duži).
+- `segAt(wz)` → segment na toj dubini ili `null` (= procep).
+  `safeWz(want,span)` → pomera spawn na sredinu vagona da ništa ne padne u procep.
+- Pad u procep: `deathCause:'gap'`, ali uz **coyote-time** (`p.coy`, 7 frejmova).
+- Render: `drawTrain()` → `drawVoid()` (ponor) → zatamnjenje procepa →
+  `drawRoofSeg()` po segmentu (rebra, rđa, broj) → `roofEdge()` hazard trake →
+  „⚠ SKOČI" upozorenje.
+- **Balans ručice ako treba lakše/teže**: `G.spd` formula (rast brzine + cap),
+  `TLN`/`TGAP`, i coyote prag `p.coy>7`.
 
 ## Kreativna konstanta (NE MENJATI bez razloga)
 

@@ -48,6 +48,10 @@ const cl=(v,a,b)=>Math.max(a,Math.min(b,v));
 // ── PERSPECTIVE ─────────────────────────────────
 const VY=132,NY=438,NS=0.83;
 const WX=-312,WHT=148,WLN=0.21,WGAP=0.05;
+// ── KOMPOZICIJA PO KOJOJ TRČIMO (preskakanje vagona) ──
+// TLN = dužina krova vagona, TGAP = procep između vagona (mora da se preskoči)
+// PLZ = dubina na kojoj stoji igrač, ROOFW = poluširina krova
+const TLN=0.62,TGAP=0.10,PLZ=0.05,ROOFW=252;
 function prj(wx,wz){const t=1-cl(wz,0,1);return{x:W/2+wx*t*NS,y:VY+t*(NY-VY),s:t};}
 
 // ── CHARACTERS ──────────────────────────────────
@@ -211,6 +215,34 @@ function mkWagon(wz){
   };
 }
 
+// ── SEGMENT KOMPOZICIJE (krov po kome trčimo) ────
+let segId=0;
+function mkSeg(wz){
+  return{wz,id:segId++,len:TLN*(Math.random()<0.3?1.7:1),
+    h:8+ri(0,26),sat:14+ri(0,12),lig:12+ri(0,7),
+    grf:Math.random()>0.62,gh:110+ri(0,90),
+    num:String(3200+ri(0,6800)),
+    rust:Array.from({length:6},()=>({u:rn(-0.85,0.85),v:rn(0.08,0.92),r:rn(0.022,0.062)})),
+  };
+}
+// da li je dubina wz na nekom vagonu (null = procep)
+function segAt(wz){
+  for(const s of G.train)if(wz>=s.wz&&wz<=s.wz+s.len)return s;
+  return null;
+}
+// pomeri željenu dubinu na bezbedno mesto NA vagonu (za spawn prepreka/zlata)
+function safeWz(want,span=0){
+  let best=null,bd=1e9;
+  for(const s of G.train){
+    const lo=s.wz+0.12,hi=s.wz+s.len-0.12-span;
+    if(hi<=lo)continue;
+    if(want>=lo&&want<=hi)return want;
+    const c=(lo+hi)/2,d=Math.abs(c-want);
+    if(d<bd){bd=d;best=c;}
+  }
+  return best!==null?best:want;
+}
+
 // ── STATE ────────────────────────────────────────
 const LANES=[-210,0,210];
 const cW=162,cH=230,cGap=12,cY=H/2-115+15;
@@ -220,6 +252,8 @@ let isPortrait=false,G;
 function newGame(charId){
   const ch=CHARS.find(c=>c.id===charId)||CHARS[0];
   const wags=[];for(let i=0;i<10;i++)wags.push(mkWagon(0.02+i*(WLN+WGAP)));
+  // kompozicija po kojoj trčimo — prvi segment pokriva igrača
+  const train=[];{let z=-0.3;while(z<1.35){const sg=mkSeg(z);train.push(sg);z+=sg.len+TGAP;}}
   G={ph:'play',paused:false,t:0,fr:0,score:0,spd:0.008,hue:0,shk:0,msg:'',msgT:0,
     ch,deathCause:'crash',wasOD:false,streak:0,lastHard:'',ovT:0,
     anxiety:0,panics:0,panicT:0,urgentT:3000,
@@ -228,7 +262,8 @@ function newGame(charId){
     raid:{active:false,warn:0,t:0,timer:22000+rn(0,16000),prox:0,sirenT:0,survived:0},
     p:{lane:1,wx:0,jy:0,jv:0,gnd:true,eff:null,effEnd:0,mj:1,ji:0,landT:0,wasGnd:true,stepSign:0},
     obs:[],pkp:[],parts:[],wags,obT:2400,pkT:2500,
-    gold:[],pops:[],coins:0,coinT:5000,goldMsg:false,curSp:0.008};
+    gold:[],pops:[],coins:0,coinT:5000,goldMsg:false,curSp:0.008,
+    train,lastSeg:train[0].id,wagons:0};
 }
 G={ph:'charselect',t:0,fr:0,hoverChar:-1,ch:CHARS[0]};
 
@@ -334,7 +369,7 @@ function update(dt){
   const p=G.p,ch=G.ch;
   G.t+=dt;G.fr++;G.score+=dt/60;
   if(G.score>0&&!G._hi)G._hi=0;
-  G.spd=0.008+G.score*0.000055;
+  G.spd=Math.min(0.0150,0.0075+G.score*0.000017);
 
   let sp=G.spd;
   const isH=p.eff==='heroin'||p.eff==='ketamine';
@@ -451,21 +486,42 @@ function update(dt){
   const last=G.wags[G.wags.length-1];
   if(!last||last.wz+WLN<0.95)G.wags.push(mkWagon(last?last.wz+WLN+WGAP:0.5));
 
+  // ── KOMPOZICIJA: pomeranje + recikliranje ──
+  G.train.forEach(s=>s.wz-=dz);
+  G.train=G.train.filter(s=>s.wz+s.len>-0.4);
+  let lastT=G.train[G.train.length-1];
+  while(!lastT||lastT.wz+lastT.len<1.35){
+    G.train.push(mkSeg(lastT?lastT.wz+lastT.len+TGAP:0.6));
+    lastT=G.train[G.train.length-1];
+  }
+  // preskočen vagon = bodovi
+  const seg=segAt(PLZ);
+  if(seg&&seg.id!==G.lastSeg){
+    G.lastSeg=seg.id;G.wagons++;G.score+=12;
+    addPop(W/2,NY-152,'+12 VAGON','#ffd447');
+    snd(1245,0.06,0.1,'square');vib(10);
+  }
+  // pao u procep — ali sa coyote-time grace (možeš da skočiš i malo posle ivice)
+  if(!seg){
+    p.coy=(p.coy||0)+1;
+    if(p.jy<=6&&p.coy>7){G.deathCause='gap';vib([80,50,160]);die();return;}
+  }else p.coy=0;
+
   // Spawn — tematske prepreke (niska/visoka/beba/majka)
   G.obT-=dt;
   if(G.obT<=0){
     const r=Math.random();
     const type=r<0.32?'low':r<0.58?'tall':r<0.78?'baby':'mother';
-    G.obs.push({lane:ri(0,3),wz:1.0,type,announced:false,bubbleT:0});
-    G.obT=raidOn?(1050+rn(0,850)):(2300+rn(0,2600));
+    G.obs.push({lane:ri(0,3),wz:safeWz(1.0),type,announced:false,bubbleT:0});
+    G.obT=raidOn?(1700+rn(0,1000)):(3300+rn(0,3000));
   }
-  G.pkT-=dt;if(G.pkT<=0){G.pkp.push({lane:ri(0,3),wz:1.0,done:false,drug:DRUGS[ri(0,DRUGS.length)]});G.pkT=3400+rn(0,3800);}
+  G.pkT-=dt;if(G.pkT<=0){G.pkp.push({lane:ri(0,3),wz:safeWz(1.0),done:false,drug:DRUGS[ri(0,DRUGS.length)]});G.pkT=3400+rn(0,3800);}
 
   // MAMINO ZLATO — red novčića (vezano za majku koja ga traži)
   G.coinT-=dt;
   if(G.coinT<=0){
-    const gl=ri(0,3),n=3+ri(0,3);
-    for(let i=0;i<n;i++)G.gold.push({lane:gl,wz:1.0+i*0.055,done:false});
+    const gl=ri(0,3),n=3+ri(0,3),z0=safeWz(1.0,(n-1)*0.055);
+    for(let i=0;i<n;i++)G.gold.push({lane:gl,wz:z0+i*0.055,done:false});
     G.coinT=6000+rn(0,5000);
     if(!G.goldMsg){G.goldMsg=true;G.msg='🪙 MAMINO ZLATO — pokupi ga!';G.msgT=2400;}
   }
@@ -709,6 +765,113 @@ function drawWagon(w){
 }
 
 // ── SCENE ────────────────────────────────────────
+// ── KOMPOZICIJA: krov po kome trčimo ─────────────
+function drawVoid(){
+  const fL=prj(-ROOFW,0.996),fR=prj(ROOFW,0.996),nL=prj(-ROOFW,0.004),nR=prj(ROOFW,0.004);
+  const g=cx.createLinearGradient(0,fL.y,0,NY+18);
+  g.addColorStop(0,'#0b0805');g.addColorStop(1,'#010101');
+  cx.fillStyle=g;cx.beginPath();
+  cx.moveTo(fL.x,fL.y);cx.lineTo(fR.x,fR.y);cx.lineTo(nR.x,NY+18);cx.lineTo(nL.x,NY+18);cx.closePath();cx.fill();
+  // pragovi daleko ispod — jure (daje dubinu ponoru)
+  const ts=0.042,to=(G.t*0.00075)%ts;
+  for(let wz=to;wz<1;wz+=ts){
+    const L=prj(-ROOFW*0.5,wz),R=prj(ROOFW*0.5,wz);
+    cx.fillStyle=`rgba(46,26,10,${0.2+L.s*0.34})`;
+    cx.fillRect(L.x,L.y+26*L.s,R.x-L.x,Math.max(1,3.4*L.s));
+  }
+}
+function roofEdge(wz){
+  if(wz<0.008||wz>0.992)return;
+  const L=prj(-ROOFW,wz),R=prj(ROOFW,wz),th=Math.max(2,8*L.s);
+  const n=16,dx=(R.x-L.x)/n;
+  for(let i=0;i<n;i++){
+    cx.fillStyle=i%2?'#14140f':'#e8c020';
+    cx.fillRect(L.x+i*dx,L.y-th/2,dx+0.7,th);
+  }
+  cx.fillStyle=`rgba(0,0,0,${0.32+L.s*0.3})`;
+  cx.fillRect(L.x,L.y+th/2,R.x-L.x,Math.max(1,2.4*L.s));
+}
+function drawRoofSeg(s){
+  const z0=s.wz,z1=s.wz+s.len;
+  if(z1<=0.005||z0>=0.995)return;
+  const a=cl(z0,0.005,0.995),b=cl(z1,0.005,0.995);
+  if(b-a<0.004)return;
+  const nL=prj(-ROOFW,a),nR=prj(ROOFW,a),fL=prj(-ROOFW,b),fR=prj(ROOFW,b);
+  const g=cx.createLinearGradient(0,fL.y,0,nL.y);
+  g.addColorStop(0,`hsl(${s.h},${s.sat}%,${Math.max(4,s.lig-6)}%)`);
+  g.addColorStop(1,`hsl(${s.h},${s.sat}%,${s.lig+4}%)`);
+  cx.fillStyle=g;
+  cx.beginPath();cx.moveTo(fL.x,fL.y);cx.lineTo(fR.x,fR.y);cx.lineTo(nR.x,nR.y);cx.lineTo(nL.x,nL.y);cx.closePath();cx.fill();
+  // rebra popreko
+  for(let i=1;i<8;i++){
+    const wz=z0+s.len*(i/8);
+    if(wz<0.008||wz>0.992)continue;
+    const L=prj(-ROOFW*0.97,wz),R=prj(ROOFW*0.97,wz);
+    cx.strokeStyle=`rgba(0,0,0,${0.18+L.s*0.24})`;cx.lineWidth=Math.max(0.6,2.4*L.s);
+    cx.beginPath();cx.moveTo(L.x,L.y);cx.lineTo(R.x,R.y);cx.stroke();
+    cx.strokeStyle=`rgba(255,255,255,${0.04+L.s*0.06})`;cx.lineWidth=Math.max(0.4,1.1*L.s);
+    cx.beginPath();cx.moveTo(L.x,L.y+2*L.s);cx.lineTo(R.x,R.y+2*L.s);cx.stroke();
+  }
+  // uzdužne linije (staza)
+  [-64,64].forEach(rx=>{
+    const f=prj(rx,b),n2=prj(rx,a);
+    cx.strokeStyle='rgba(255,255,255,0.05)';cx.lineWidth=Math.max(0.5,1.6*n2.s);
+    cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(n2.x,n2.y);cx.stroke();
+  });
+  // rđa
+  for(const r of s.rust){
+    const wz=z0+s.len*r.v;if(wz<0.01||wz>0.99)continue;
+    const p2=prj(r.u*ROOFW,wz),rr2=r.r*ROOFW*p2.s;
+    if(rr2<1.2)continue;
+    cx.fillStyle=`rgba(116,46,14,${0.2+r.r*3.2})`;
+    cx.beginPath();cx.ellipse(p2.x,p2.y,rr2,rr2*0.4,0,0,PI2);cx.fill();
+  }
+  // broj vagona / grafit
+  if(s.grf){
+    const wz=z0+s.len*0.5;
+    if(wz>0.02&&wz<0.9){
+      const p2=prj(0,wz),sc=p2.s;
+      if(sc>0.22){
+        cx.globalAlpha=Math.min(0.45,sc*0.65);
+        cx.fillStyle=`hsl(${s.gh},60%,46%)`;
+        cx.font=`bold ${Math.max(8,34*sc)}px 'Courier New'`;cx.textAlign='center';
+        cx.fillText(s.num,p2.x,p2.y);cx.textAlign='left';cx.globalAlpha=1;
+      }
+    }
+  }
+  // IVICE — odatle se skače
+  roofEdge(z0);roofEdge(z1);
+}
+function drawTrain(){
+  drawVoid();
+  // procepi — dodatno zatamnjenje da se jasno čitaju kao rupa
+  for(const s of G.train){
+    const g0=s.wz+s.len,g1=g0+TGAP;
+    if(g1<0.006||g0>0.994)continue;
+    const a=cl(g0,0.006,0.994),b=cl(g1,0.006,0.994);
+    if(b-a<0.002)continue;
+    const nL=prj(-ROOFW,a),nR=prj(ROOFW,a),fL=prj(-ROOFW,b),fR=prj(ROOFW,b);
+    cx.fillStyle='rgba(0,0,0,0.78)';
+    cx.beginPath();cx.moveTo(fL.x,fL.y);cx.lineTo(fR.x,fR.y);cx.lineTo(nR.x,nR.y);cx.lineTo(nL.x,nL.y);cx.closePath();cx.fill();
+  }
+  [...G.train].sort((a,b)=>b.wz-a.wz).forEach(drawRoofSeg);
+  // upozorenje na nadolazeći procep
+  for(const s of G.train){
+    const gc=s.wz+s.len+TGAP/2;
+    if(gc>0.1&&gc<0.52){
+      const p2=prj(0,gc),al=cl((0.52-gc)/0.22,0,1);
+      const fs=Math.max(11,21*p2.s),tw=fs*5.4;
+      cx.globalAlpha=al*0.8;
+      cx.fillStyle='rgba(0,0,0,0.62)';
+      rr(p2.x-tw/2,p2.y-20*p2.s-fs*1.25,tw,fs*1.4,4);cx.fill();
+      cx.globalAlpha=al*(0.6+Math.sin(G.t/130)*0.4);
+      cx.fillStyle='#ff5252';cx.font=`bold ${fs}px 'Courier New'`;
+      cx.textAlign='center';cx.fillText('⚠ SKOČI',p2.x,p2.y-20*p2.s-fs*0.25);
+      cx.textAlign='left';cx.globalAlpha=1;
+    }
+  }
+}
+
 function drawScene(){
   cx.drawImage(getBG(),0,0);
   const gg=cx.createLinearGradient(0,VY,0,H);gg.addColorStop(0,'#14100a');gg.addColorStop(1,'#1e1408');
@@ -721,21 +884,8 @@ function drawScene(){
   const rm=prj(372,1),rm2=prj(372,0);
   cx.strokeStyle='rgba(240,220,0,0.55)';cx.lineWidth=1.5;cx.setLineDash([8,14]);
   cx.beginPath();cx.moveTo(rm.x,rm.y);cx.lineTo(rm2.x,NY);cx.stroke();cx.setLineDash([]);
-  // Track
-  const tl=prj(-218,1),tln=prj(-218,0),tr=prj(218,1),trn=prj(218,0);
-  cx.fillStyle='#2a1c0c';cx.beginPath();cx.moveTo(tl.x,tl.y);cx.lineTo(tr.x,tr.y);cx.lineTo(trn.x,NY+8);cx.lineTo(tln.x,NY+8);cx.closePath();cx.fill();
-  const ts=0.077,to=(G.t*0.00028)%ts;
-  for(let wz=to;wz<1.0;wz+=ts){
-    const L=prj(-202,wz),R=prj(202,wz),th=Math.max(2,4.5*L.s);
-    cx.fillStyle=`rgba(30,14,4,${0.48+L.s*0.45})`;cx.fillRect(L.x,L.y-th/2,R.x-L.x,th);
-  }
-  [-192,-62,62,192].forEach(rx=>{
-    const f=prj(rx,1),n=prj(rx,0);
-    const rg=cx.createLinearGradient(f.x,f.y,n.x,n.y);
-    rg.addColorStop(0,'#222');rg.addColorStop(0.4,'#aaa');rg.addColorStop(1,'#555');
-    cx.strokeStyle=rg;cx.lineWidth=Math.max(1,2.5*n.s);
-    cx.beginPath();cx.moveTo(f.x,f.y);cx.lineTo(n.x,n.y);cx.stroke();
-  });
+  // KOMPOZICIJA po kojoj trčimo (zamenila je šine)
+  drawTrain();
   [...G.wags].sort((a,b)=>b.wz-a.wz).forEach(drawWagon);
 }
 
@@ -1303,6 +1453,7 @@ function drawHUD(){
   const hi=LB.length>0?LB[0].score:0;cx.fillText(`HI ${String(hi).padStart(5,'0')}`,W-14,46);
   // Zlato brojač
   if(G.coins>0){cx.fillStyle='#ffd447';cx.font='bold 12px Courier New';cx.fillText(`🪙 ${G.coins}`,W-14,100);}
+  if(G.wagons>0){cx.fillStyle='#8fd4ff';cx.font='bold 12px Courier New';cx.fillText(`🚃 ${G.wagons}`,W-14,116);}
   // Leteći score popup-i
   for(const pp of G.pops){
     cx.globalAlpha=Math.max(0,pp.t/pp.t0);
@@ -1395,20 +1546,23 @@ function drawDead(){
   const crashSubs={mother:'Majka te uhvatila tražeći svoje zlato — moraš da je zaobiđeš!',
     baby:'Spotakao si se o bebu na šinama...',low:'Udario si u prepreku — skoči na vreme!',tall:'Udario si u prepreku — skoči na vreme!'};
   const dc=G.deathCause;
-  const titles={crash:crashTitles[G.crashKind]||'UHVAĆEN!',overdoza:'OVERDOZA',anxiety:'NAPADAJ PANIKE!'};
-  const colors={crash:'#e74c3c',overdoza:'#ff2222',anxiety:'#ff8c00'};
+  const titles={crash:crashTitles[G.crashKind]||'UHVAĆEN!',overdoza:'OVERDOZA',anxiety:'NAPADAJ PANIKE!',
+    gap:'PAO SI IZMEĐU VAGONA'};
+  const colors={crash:'#e74c3c',overdoza:'#ff2222',anxiety:'#ff8c00',gap:'#c0392b'};
+  if(dc==='gap')cx.fillStyle='#ffaa77',cx.font='11px Courier New',
+    cx.fillText('Procep između vagona ne prašta — skoči na vreme.',W/2,H*0.2);
   cx.fillStyle=colors[dc]||'#e74c3c';cx.font=`bold ${G.wasOD?42:50}px Courier New`;
   cx.shadowColor=colors[dc];cx.shadowBlur=25;cx.fillText(titles[dc]||'UHVAĆEN!',W/2,H*0.14);cx.shadowBlur=0;
   if(dc==='crash')cx.fillStyle='#ffaa77',cx.font='11px Courier New',cx.fillText(crashSubs[G.crashKind]||'',W/2,H*0.2);
   if(dc==='anxiety')cx.fillStyle='#ffaa77',cx.font='11px Courier New',cx.fillText(`${G.ch.emoji} ${G.ch.name} nije mogao da podnese anksioznost bez droge`,W/2,H*0.2);
   if(G.wasOD)cx.fillStyle='#ffaaaa',cx.font='11px Courier New',cx.fillText('Heroin/Ketamin/Krek blokira disanje — pozovi 112 · Nalokson spašava živote',W/2,H*0.2);
-  cx.fillStyle='#f1c40f';cx.font='bold 14px Courier New';cx.fillText(`${G.ch.emoji}  ${G.ch.name}  —  ${Math.floor(G.score)} bodova${G.coins?`  ·  🪙 ${G.coins}`:''}`,W/2,H*0.27);
+  cx.fillStyle='#f1c40f';cx.font='bold 14px Courier New';cx.fillText(`${G.ch.emoji}  ${G.ch.name}  —  ${Math.floor(G.score)} bodova  ·  🚃 ${G.wagons}${G.coins?`  ·  🪙 ${G.coins}`:''}`,W/2,H*0.27);
   // Leaderboard
   if(LB.length>0){
     cx.fillStyle='#111';rr(W/2-210,H*0.32,420,H*0.54,6);cx.fill();cx.strokeStyle='#222';cx.lineWidth=1;rr(W/2-210,H*0.32,420,H*0.54,6);cx.stroke();
     cx.fillStyle='#2a2a2a';cx.font='bold 9px Courier New';cx.fillText('── TOP 10 ──',W/2,H*0.32+16);
     const medals=['🥇','🥈','🥉'];
-    const causeIco={crash:'🚧',overdoza:'💉',anxiety:'😰'};
+    const causeIco={crash:'🚧',overdoza:'💉',anxiety:'😰',gap:'🚃'};
     LB.forEach((e,i)=>{
       const ry=H*0.32+30+i*22;
       const isMe=e.score===Math.floor(G.score)&&e.char===G.ch.name;
@@ -1503,6 +1657,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden&&G.ph==='pl
 
 // ── SHAREABLE DEATH CARD (Canvas → PNG) ──────────
 const CARD_FACTS={
+  gap:'Jedan pogrešan korak i nema nazad. Zavisnost isto tako — procep se ne vidi dok ne upadneš.',
   crash:'Zavisnost te ne uhvati odjednom — nego korak po korak, dok ne pomisliš da kontrolišeš situaciju.',
   overdoza:'Opijati (heroin, fentanil) zaustavljaju disanje. Nalokson (Narcan) poništava predoziranje — pozovi 112.',
   anxiety:'Droga ne leči anksioznost — odlaže je i pojačava. Pravo olakšanje je razgovor i pomoć, ne sledeća doza.',
@@ -1510,8 +1665,8 @@ const CARD_FACTS={
 function buildCard(){
   const cw=720,chh=900,cc=document.createElement('canvas');cc.width=cw;cc.height=chh;
   const x=cc.getContext('2d');
-  const titles={crash:'UHVAĆEN',overdoza:'OVERDOZA',anxiety:'NAPADAJ PANIKE'};
-  const colors={crash:'#e74c3c',overdoza:'#ff2222',anxiety:'#ff8c00'};
+  const titles={crash:'UHVAĆEN',overdoza:'OVERDOZA',anxiety:'NAPADAJ PANIKE',gap:'PAO IZMEĐU VAGONA'};
+  const colors={crash:'#e74c3c',overdoza:'#ff2222',anxiety:'#ff8c00',gap:'#c0392b'};
   const dc=G.deathCause,col=colors[dc]||'#e74c3c';
   // BG
   const bg=x.createLinearGradient(0,0,0,chh);bg.addColorStop(0,'#0a0a0a');bg.addColorStop(1,'#160606');
@@ -1530,7 +1685,7 @@ function buildCard(){
   x.fillStyle='#888';x.font='15px Courier New';x.fillText('REZULTAT',cw/2,420);
   x.fillStyle='#f1c40f';x.font='bold 110px Courier New';x.fillText(String(Math.floor(G.score)),cw/2,520);
   if(G.wasOD&&G.lastHard){x.fillStyle='#ff9999';x.font='17px Courier New';x.fillText(`uzrok: ${G.lastHard} × 3 zaredom`,cw/2,560);}
-  else if(G.coins){x.fillStyle='#ffd447';x.font='bold 19px Courier New';x.fillText(`🪙 ${G.coins} maminog zlata`,cw/2,560);}
+  else {x.fillStyle='#8fd4ff';x.font='bold 19px Courier New';x.fillText(`🚃 ${G.wagons} preskočenih vagona`+(G.coins?`  ·  🪙 ${G.coins}`:''),cw/2,560);}
   // Fact box
   const fact=CARD_FACTS[dc]||CARD_FACTS.crash;
   x.fillStyle='rgba(255,255,255,0.05)';x.fillRect(50,600,cw-100,180);
@@ -1549,7 +1704,7 @@ function buildCard(){
 }
 async function shareCard(){
   let cc;try{cc=buildCard();}catch(e){return;}
-  const cause=G.wasOD?'overdoze':G.deathCause==='anxiety'?'anksioznosti':'policije';
+  const cause=G.wasOD?'overdoze':G.deathCause==='anxiety'?'anksioznosti':G.deathCause==='gap'?'procepa među vagonima':'policije';
   const txt=`Skupio sam ${Math.floor(G.score)} bodova u Trainspotting Runner-u pre nego što me sredila doza ${cause}. Probaj i ti! #TrainspottingGame`;
   cc.toBlob(async(blob)=>{
     if(!blob)return;

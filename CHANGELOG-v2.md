@@ -1,3 +1,31 @@
+# Runner v5 — PRESKAKANJE VAGONA (glavna igra)
+
+Runner je vraćen u fokus i dobio srž po kojoj se Trainspotting i zove:
+**trčiš po krovu kompozicije i preskačeš procepe između vagona.**
+
+## Nova mehanika
+- Krov kompozicije zamenio je stare šine: segmenti vagona sa **procepima** koji
+  moraju da se preskoče. Pad u procep = smrt (`deathCause:'gap'`).
+- Svaki preskočen vagon = **+12 bodova**, brojač 🚃 u HUD-u, na ekranu smrti i na
+  deljivoj death-card slici.
+- Vagoni variraju: 30% su **spojena dva vagona** (duži krov = predah).
+- Prepreke, droge i zlato se spawn-uju isključivo NA vagone (`safeWz`), nikad u procep.
+
+## Čitljivost (da se procep vidi na vreme)
+- Žuto-crne **hazard trake** na ivicama vagona, crn ponor sa pragovima koji jure
+  daleko ispod, i **„⚠ SKOČI"** upozorenje sa podlogom iznad nadolazećeg procepa.
+
+## Balans — napravljeno lakše (verifikovano botom)
+- Brzina: bila `0.008 + score*0.000055` (udvostruči se za 6s) →
+  sada `min(0.0150, 0.0075 + score*0.000017)` — blaži rast + gornja granica.
+- Duži vagoni (0.62 umesto 0.52), uži procepi (0.10 umesto 0.13).
+- **Coyote-time**: 7 frejmova grace — možeš da skočiš i pošto si prešao ivicu.
+- Prepreke ređe, jer procepi sada nose izazov.
+- Rezultat testa: bot bez skretanja prelazi **17 vagona / 22s bez ijednog pada**
+  (pre izmena je padao već na 6-7. vagonu).
+
+---
+
 # KVART — "Vice City pass" (grafički upgrade)
 
 Cilj: grafika bar na nivou GTA Vice City (2002). Ono što pravi VC nije shader
