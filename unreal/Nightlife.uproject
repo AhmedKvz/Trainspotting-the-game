@@ -1,0 +1,23 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.8",
+  "Category": "Games",
+  "Description": "NIGHTLIFE — third-person social nightlife sandbox",
+  "Modules": [
+    {
+      "Name": "Nightlife",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    { "Name": "GameplayAbilities", "Enabled": true },
+    { "Name": "GameplayTags", "Enabled": true },
+    { "Name": "GameplayTasks", "Enabled": true },
+    { "Name": "StateTree", "Enabled": true },
+    { "Name": "SmartObjects", "Enabled": true },
+    { "Name": "MassEntity", "Enabled": true },
+    { "Name": "MassGameplay", "Enabled": true },
+    { "Name": "Metasound", "Enabled": true }
+  ]
+}
